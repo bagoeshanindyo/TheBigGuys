@@ -1,0 +1,1431 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>THE BIG GUYS — Recipe Costing</title>
+<meta name="description" content="Kalkulator HPP, resep, batch produksi, dan rencana produksi untuk THE BIG GUYS.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23c81e2c'/%3E%3Ctext x='50' y='68' font-size='58' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'%3EB%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================= RESET & TOKENS ================= */
+*,*::before,*::after{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  -webkit-font-smoothing:antialiased;
+}
+:root{
+  --bg:#f6f3ee;
+  --surface:#ffffff;
+  --card:#ffffff;
+  --border:#e8e1d6;
+  --text:#20180f;
+  --g50:#faf8f5; --g100:#f1ece4; --g200:#e4dccd; --g300:#cfc3ae;
+  --g400:#a8998278; --g400:#9c8b73; --g500:#7a6b56; --g600:#5c4f40;
+  --g700:#42392e; --g800:#2c2620; --g900:#1a1611;
+  --red:#c81e2c; --red-dark:#a3141f; --red-light:#fde8e8;
+  --green:#1f9254; --green-light:#e5f6ec;
+  --amber:#c98a12; --amber-light:#fbf1dc;
+  --font-display:'Poppins',sans-serif;
+  --radius:14px; --radius-sm:9px;
+  --shadow:0 1px 2px rgba(32,24,15,.05), 0 8px 24px -12px rgba(32,24,15,.12);
+}
+:root[data-theme="dark"]{
+  --bg:#15120e;
+  --surface:#1e1a15;
+  --card:#221d17;
+  --border:#33291f;
+  --text:#f2ece2;
+  --g50:#221d17; --g100:#2a2419; --g200:#3a3226; --g300:#4c4234;
+  --g400:#8a7c68; --g500:#a89a84; --g600:#c3b6a0; --g700:#d8ccba;
+  --g800:#ece3d4; --g900:#faf6ef;
+  --red-light:#3a1c1c; --green-light:#123420; --amber-light:#3a2c10;
+  --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px -12px rgba(0,0,0,.5);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]):not([data-theme="dark"]){
+    --bg:#15120e; --surface:#1e1a15; --card:#221d17; --border:#33291f; --text:#f2ece2;
+    --g50:#221d17; --g100:#2a2419; --g200:#3a3226; --g300:#4c4234;
+    --g400:#8a7c68; --g500:#a89a84; --g600:#c3b6a0; --g700:#d8ccba;
+    --g800:#ece3d4; --g900:#faf6ef;
+    --red-light:#3a1c1c; --green-light:#123420; --amber-light:#3a2c10;
+  }
+}
+h1,h2,h3,h4{font-family:var(--font-display);margin:0;color:var(--text);}
+p{margin:0;}
+button{font-family:inherit;cursor:pointer;}
+input,select{font-family:inherit;}
+::selection{background:var(--red);color:#fff;}
+
+/* ================= LAYOUT ================= */
+.app{display:flex;min-height:100vh;}
+.sidebar{
+  width:230px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;position:sticky;top:0;height:100vh;
+}
+.brand{padding:22px 20px 16px;border-bottom:1px solid var(--border);}
+.brand-name{font-family:var(--font-display);font-weight:800;font-size:17px;letter-spacing:.5px;color:var(--red);}
+.brand-sub{font-size:11.5px;color:var(--g500);margin-top:2px;}
+nav{flex:1;padding:14px 12px;display:flex;flex-direction:column;gap:2px;overflow-y:auto;}
+.nav-btn{
+  display:flex;align-items:center;gap:10px;text-align:left;background:none;border:none;
+  padding:10px 12px;border-radius:var(--radius-sm);font-size:13.5px;font-weight:500;
+  color:var(--g600);transition:background .15s,color .15s;
+}
+.nav-btn:hover{background:var(--g100);color:var(--text);}
+.nav-btn.active{background:var(--red);color:#fff;}
+.sidebar-foot{padding:14px 20px;border-top:1px solid var(--border);font-size:11.5px;color:var(--g500);}
+.sidebar-foot b{color:var(--text);}
+
+.main{flex:1;min-width:0;padding:26px 32px 60px;max-width:1200px;}
+.print-head{display:none;}
+
+.page{display:none;}
+.page.active{display:block;animation:fadein .18s ease;}
+@keyframes fadein{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
+
+.page-head{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:18px;}
+.page-head h2{font-size:22px;}
+.page-sub{font-size:13px;color:var(--g500);margin-top:4px;}
+.page-actions{display:flex;gap:8px;flex-wrap:wrap;}
+
+/* ================= BUTTONS ================= */
+.btn{border:1px solid var(--border);background:var(--surface);color:var(--text);padding:9px 16px;border-radius:var(--radius-sm);font-size:13px;font-weight:600;transition:filter .12s,transform .05s;}
+.btn:active{transform:scale(.97);}
+.btn-red{background:var(--red);border-color:var(--red);color:#fff;}
+.btn-red:hover{filter:brightness(1.08);}
+.btn-ghost{background:transparent;}
+.btn-ghost:hover{background:var(--g100);}
+.btn-sm{padding:7px 13px;font-size:12.5px;}
+
+/* ================= CARDS / STATS ================= */
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);}
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px;}
+.stat{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);position:relative;}
+.stat .ic{width:30px;height:30px;border-radius:9px;background:var(--red-light);color:var(--red);display:flex;align-items:center;justify-content:center;margin-bottom:10px;}
+.stat .ic svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.stat .lbl{font-size:11.5px;color:var(--g500);font-weight:600;text-transform:uppercase;letter-spacing:.3px;}
+.stat .val{font-family:var(--font-display);font-size:21px;font-weight:700;margin-top:4px;}
+.stat .sub{font-size:11.5px;color:var(--g500);margin-top:3px;}
+
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:14px 0;}
+.section-title{font-family:var(--font-display);font-weight:700;font-size:13.5px;margin:18px 0 8px;color:var(--text);display:flex;align-items:center;gap:8px;}
+.section-title .count{font-family:'Inter';font-weight:500;font-size:11.5px;color:var(--g500);background:var(--g100);padding:2px 8px;border-radius:20px;}
+
+/* ================= EMPTY STATE ================= */
+.empty{text-align:center;padding:40px 20px;color:var(--g500);}
+.empty .eic{width:44px;height:44px;margin:0 auto 12px;color:var(--g300);}
+.empty .eic svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;}
+.empty h4{font-size:14.5px;color:var(--text);margin-bottom:4px;}
+.empty p{font-size:12.5px;max-width:320px;margin:0 auto;line-height:1.5;}
+.empty .btn{margin-top:14px;}
+
+/* ================= TOOLBAR / SEARCH ================= */
+.toolbar{margin-bottom:14px;}
+.toolbar input[type="search"]{
+  width:100%;max-width:340px;padding:9px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);
+  background:var(--surface);color:var(--text);font-size:13px;
+}
+.toolbar input:focus,input:focus,select:focus,textarea:focus{outline:2px solid var(--red);outline-offset:1px;}
+
+/* ================= TABLES ================= */
+.tbl-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius);background:var(--card);box-shadow:var(--shadow);}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+thead th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--g500);font-weight:600;padding:12px 16px;border-bottom:1px solid var(--border);white-space:nowrap;}
+tbody td{padding:12px 16px;border-bottom:1px solid var(--border);vertical-align:middle;}
+tbody tr:last-child td{border-bottom:none;}
+tbody tr:hover{background:var(--g50);}
+th.num,td.num{text-align:right;}
+.t-name{font-weight:600;}
+.t-sub{font-size:11.5px;color:var(--g500);margin-top:2px;}
+.chip{display:inline-block;background:var(--g100);color:var(--g600);font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:20px;}
+.row-actions{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;}
+.act{border:1px solid var(--border);background:var(--surface);color:var(--g600);font-size:11.5px;font-weight:600;padding:5px 10px;border-radius:7px;white-space:nowrap;}
+.act:hover{background:var(--g100);color:var(--text);}
+.act.danger{color:var(--red);border-color:var(--red-light);}
+.act.danger:hover{background:var(--red-light);}
+
+/* ================= MOBILE CARDS ================= */
+.cards{display:none;flex-direction:column;gap:10px;}
+.m-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow);}
+.m-card .top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px;}
+.m-card .kv{display:flex;justify-content:space-between;font-size:12.5px;padding:3px 0;color:var(--g500);}
+.m-card .kv b{color:var(--text);font-weight:600;}
+.m-card .row-actions{margin-top:10px;justify-content:flex-start;}
+
+@media (max-width:840px){
+  .tbl-wrap{display:none;}
+  .cards{display:flex;}
+  .grid-2{grid-template-columns:1fr;}
+  .stat-grid{grid-template-columns:repeat(2,1fr);}
+  .grid-3{grid-template-columns:1fr;}
+}
+
+/* ================= BADGES ================= */
+.badge{display:inline-block;font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:20px;}
+.badge.green{background:var(--green-light);color:var(--green);}
+.badge.amber{background:var(--amber-light);color:var(--amber);}
+.badge.red{background:var(--red-light);color:var(--red-dark);}
+.badge.gray{background:var(--g100);color:var(--g500);}
+.tr-up{color:var(--red-dark);}
+.tr-down{color:var(--green);}
+
+/* ================= FORMS ================= */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.form-grid.c3{grid-template-columns:1fr 1fr 1fr;}
+label{display:block;font-size:12px;font-weight:600;color:var(--g600);margin-bottom:5px;}
+input[type="text"],input[type="number"],input[type="search"],input[type="email"],select,textarea{
+  width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);
+  background:var(--surface);color:var(--text);font-size:13px;
+}
+.field{margin-bottom:12px;}
+.hint{font-size:11.5px;color:var(--g500);margin-top:5px;line-height:1.5;}
+.check-row{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500;color:var(--text);}
+.check-row input{width:16px;height:16px;}
+.divider{height:1px;background:var(--border);margin:18px 0;}
+
+/* ================= SETTINGS ================= */
+.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;}
+@media (max-width:900px){.settings-grid{grid-template-columns:1fr;}}
+.unit-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);}
+.unit-row:last-child{border-bottom:none;}
+.u-n{font-weight:600;font-size:13px;}
+.u-d{font-size:11.5px;color:var(--g500);}
+.add-unit-row{display:grid;grid-template-columns:1.3fr 1fr 0.9fr auto;gap:8px;margin-top:12px;align-items:end;}
+@media (max-width:600px){.add-unit-row{grid-template-columns:1fr 1fr;}}
+
+/* ================= ITEM ROWS (recipe/ingredient composer) ================= */
+.item-row{display:grid;grid-template-columns:1fr 90px 100px 32px;gap:8px;align-items:center;margin-bottom:8px;}
+.item-row select{min-width:0;}
+.item-row .sub{font-size:12.5px;font-weight:600;text-align:right;color:var(--g600);}
+.item-row .rm{background:var(--red-light);color:var(--red-dark);border:none;border-radius:7px;width:32px;height:32px;font-size:14px;}
+@media (max-width:560px){.item-row{grid-template-columns:1fr 70px 28px;}.item-row .sub{display:none;}}
+
+/* ================= BREAKDOWN BLOCKS ================= */
+.bd{background:var(--g50);border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 14px;}
+.bd-row{display:flex;justify-content:space-between;gap:14px;padding:9px 0;border-bottom:1px dashed var(--border);font-size:13px;}
+.bd-row:last-child{border-bottom:none;}
+.bd-row .l{color:var(--g600);}
+.bd-row .l .d{display:block;font-size:11px;color:var(--g400);margin-top:2px;}
+.bd-row .v{font-weight:600;white-space:nowrap;}
+.bd-row.total{font-weight:700;border-top:1px solid var(--border);border-bottom:none;padding-top:11px;}
+.bd-row.hero{background:var(--red);color:#fff;margin:6px -14px -1px;padding:12px 14px;border-radius:0 0 var(--radius-sm) var(--radius-sm);border:none;}
+.bd-row.hero .l,.bd-row.hero .v{color:#fff;font-weight:700;}
+
+/* ================= PLANS ================= */
+.plans-layout{display:grid;grid-template-columns:230px 1fr;gap:16px;align-items:start;}
+@media (max-width:800px){.plans-layout{grid-template-columns:1fr;}}
+.plan-item{padding:12px 14px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--card);margin-bottom:8px;cursor:pointer;box-shadow:var(--shadow);}
+.plan-item.active{border-color:var(--red);background:var(--red-light);}
+.pn{font-weight:600;font-size:13px;}
+.pm{font-size:11.5px;color:var(--g500);margin-top:2px;}
+
+/* ================= BATCH ================= */
+.batch-controls label{margin-top:0;}
+
+/* ================= MODALS / OVERLAY ================= */
+.overlay{
+  position:fixed;inset:0;background:rgba(20,15,10,.5);display:none;align-items:flex-start;justify-content:center;
+  padding:5vh 16px;z-index:100;overflow-y:auto;backdrop-filter:blur(2px);
+}
+.overlay.show{display:flex;}
+.modal{background:var(--surface);border-radius:var(--radius);width:100%;max-width:640px;box-shadow:0 20px 60px rgba(0,0,0,.25);animation:modalin .16s ease;}
+@keyframes modalin{from{opacity:0;transform:translateY(-8px) scale(.98);}to{opacity:1;transform:none;}}
+.modal-head{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border);}
+.modal-head h3{font-size:15.5px;}
+.modal-x{background:none;border:none;color:var(--g500);font-size:16px;width:30px;height:30px;border-radius:8px;}
+.modal-x:hover{background:var(--g100);color:var(--text);}
+.modal-body{padding:20px;max-height:75vh;overflow-y:auto;}
+.modal-foot{display:flex;justify-content:flex-end;gap:8px;padding:14px 20px;border-top:1px solid var(--border);}
+
+/* ================= HISTORY ================= */
+.hist-bars{display:flex;align-items:flex-end;gap:5px;height:90px;margin-bottom:16px;background:var(--g50);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;}
+.bar{flex:1;background:var(--g300);border-radius:3px 3px 0 0;min-width:6px;}
+.bar.last{background:var(--red);}
+.hist-row{display:flex;justify-content:space-between;padding:8px 2px;border-bottom:1px solid var(--border);font-size:13px;}
+.hist-row:last-child{border-bottom:none;}
+.hist-row .d{color:var(--g500);}
+.hist-row .p{font-weight:600;}
+
+/* ================= TOAST ================= */
+.toast{
+  position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(12px);
+  background:var(--g900);color:var(--g50);padding:11px 18px;border-radius:10px;
+  display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500;
+  box-shadow:0 10px 30px rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:200;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.toast svg{width:16px;height:16px;fill:none;stroke:var(--green);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;}
+
+/* ================= MOBILE BOTTOM NAV ================= */
+.bottom-nav{display:none;}
+@media (max-width:760px){
+  .sidebar{display:none;}
+  .main{padding:18px 14px 90px;}
+  .bottom-nav{
+    display:flex;position:fixed;bottom:0;left:0;right:0;background:var(--surface);
+    border-top:1px solid var(--border);z-index:90;padding:6px 4px calc(env(safe-area-inset-bottom) + 6px);
+    justify-content:space-between;
+  }
+  .bottom-nav .nav-btn{flex:1;flex-direction:column;gap:2px;font-size:10px;padding:7px 2px;border-radius:9px;text-align:center;}
+  .stat-grid{grid-template-columns:1fr 1fr;}
+}
+
+/* ================= PRINT ================= */
+@media print{
+  .sidebar,.bottom-nav,.page-actions,.toolbar,.row-actions,.toast{display:none!important;}
+  .print-head{display:block;margin-bottom:16px;border-bottom:2px solid var(--red);padding-bottom:10px;}
+  .print-head h1{font-size:20px;color:var(--red);}
+  .print-head p{font-size:11px;color:#555;}
+  .main{padding:0;max-width:none;}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-name">THE BIG GUYS</div>
+      <div class="brand-sub">Recipe Costing</div>
+    </div>
+    <nav>
+      <button class="nav-btn active" data-page="dashboard">Dashboard</button>
+      <button class="nav-btn" data-page="ingredients">Bahan Baku</button>
+      <button class="nav-btn" data-page="recipes">Resep</button>
+      <button class="nav-btn" data-page="batch">Kalkulator Batch</button>
+      <button class="nav-btn" data-page="plans">Rencana Produksi</button>
+      <button class="nav-btn" data-page="settings">Pengaturan</button>
+    </nav>
+    <div class="sidebar-foot">Tarif tenaga kerja<br><b id="sb-rate">belum diatur</b></div>
+  </aside>
+
+  <main class="main">
+    <header class="print-head">
+      <h1 id="ph-name">THE BIG GUYS</h1>
+      <p id="ph-sub">Recipe Costing</p>
+    </header>
+
+    <!-- DASHBOARD -->
+    <section class="page active" id="page-dashboard">
+      <div class="page-head">
+        <div><h2>Dashboard</h2><p class="page-sub">Ringkasan bahan, resep, HPP, dan tren harga.</p></div>
+      </div>
+      <div class="stat-grid" id="dash-stats"></div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="section-title">Margin Tertinggi</div>
+          <div id="dash-top-margin"></div>
+        </div>
+        <div class="card">
+          <div class="section-title">Perubahan Harga Terbaru</div>
+          <div id="dash-price-moves"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- INGREDIENTS -->
+    <section class="page" id="page-ingredients">
+      <div class="page-head">
+        <div><h2>Bahan Baku</h2><p class="page-sub"><span id="ing-count">0 bahan</span></p></div>
+        <div class="page-actions">
+          <button class="btn btn-ghost btn-sm" onclick="exportIngredientsCSV()">Ekspor CSV</button>
+          <button class="btn btn-red btn-sm" onclick="openIngredientForm()">+ Tambah Bahan</button>
+        </div>
+      </div>
+      <div class="toolbar"><input id="ing-search" type="search" placeholder="Cari nama atau kategori bahan..." oninput="renderIngredients()"></div>
+      <div id="ing-empty"></div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Bahan</th><th class="num">Harga / Satuan</th><th class="num">Susut</th><th class="num">Harga Efektif</th><th></th></tr></thead>
+          <tbody id="ing-tbody"></tbody>
+        </table>
+      </div>
+      <div class="cards" id="ing-cards"></div>
+    </section>
+
+    <!-- RECIPES -->
+    <section class="page" id="page-recipes">
+      <div class="page-head">
+        <div><h2>Resep</h2><p class="page-sub"><span id="rec-count">0 resep</span></p></div>
+        <div class="page-actions">
+          <button class="btn btn-ghost btn-sm" onclick="exportRecipesCSV()">Ekspor CSV</button>
+          <button class="btn btn-red btn-sm" onclick="openRecipeForm()">+ Tambah Resep</button>
+        </div>
+      </div>
+      <div class="toolbar"><input id="rec-search" type="search" placeholder="Cari nama atau kategori resep..." oninput="renderRecipes()"></div>
+      <div id="rec-empty"></div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Resep</th><th class="num">HPP</th><th class="num">Harga Jual</th><th style="text-align:center;">Margin</th><th></th></tr></thead>
+          <tbody id="rec-tbody"></tbody>
+        </table>
+      </div>
+      <div class="cards" id="rec-cards"></div>
+    </section>
+
+    <!-- BATCH -->
+    <section class="page" id="page-batch">
+      <div class="page-head">
+        <div><h2>Kalkulator Batch</h2><p class="page-sub">Skalakan resep untuk produksi dalam jumlah besar.</p></div>
+        <div class="page-actions">
+          <button class="btn btn-ghost btn-sm" onclick="exportBatchCSV()">Ekspor Daftar Belanja</button>
+        </div>
+      </div>
+      <div class="card batch-controls">
+        <div class="field">
+          <label>Pilih Resep</label>
+          <select id="batch-recipe" onchange="renderBatch()"></select>
+        </div>
+        <div class="form-grid c3">
+          <div class="field"><label>Kelipatan Batch</label><input id="batch-mult" type="number" value="1" min="0" step="0.1" oninput="syncFromMult()"></div>
+          <div class="field"><label>Target Hasil</label><input id="batch-target" type="number" min="0" step="0.1" placeholder="jumlah unit" oninput="syncFromTarget()"></div>
+          <div class="field"><label>Harga Jual / Unit (opsional)</label><input id="batch-sell" type="number" min="0" placeholder="ikuti harga resep" oninput="renderBatch()"></div>
+        </div>
+      </div>
+      <div id="batch-result" style="margin-top:16px;"></div>
+    </section>
+
+    <!-- PLANS -->
+    <section class="page" id="page-plans">
+      <div class="page-head">
+        <div><h2>Rencana Produksi</h2><p class="page-sub">Gabungkan beberapa resep untuk marketlist bersama.</p></div>
+        <div class="page-actions">
+          <button class="btn btn-ghost btn-sm" onclick="exportPlanCSV()">Ekspor Marketlist</button>
+          <button class="btn btn-red btn-sm" onclick="createPlan()">+ Rencana Baru</button>
+        </div>
+      </div>
+      <div class="plans-layout">
+        <div id="plan-list"></div>
+        <div id="plan-editor"></div>
+      </div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section class="page" id="page-settings">
+      <div class="page-head">
+        <div><h2>Pengaturan</h2><p class="page-sub">Atur tarif, overhead, margin target, dan preferensi tampilan.</p></div>
+        <div class="page-actions"><button class="btn btn-red btn-sm" onclick="saveSettings()">Simpan Pengaturan</button></div>
+      </div>
+
+      <div class="settings-grid">
+        <div class="card">
+          <div class="section-title">Biaya & Margin</div>
+          <div class="form-grid">
+            <div class="field"><label>Tarif Tenaga Kerja (per jam)</label><input id="set-rate" type="number" min="0" placeholder="0"></div>
+            <div class="field"><label>Overhead Otomatis (%)</label><input id="set-overhead" type="number" min="0" max="100" placeholder="0"></div>
+            <div class="field"><label>Target Margin Default (%)</label><input id="set-margin" type="number" min="0" max="95" placeholder="0"></div>
+            <div class="field"><label>Susut Default (%)</label><input id="set-waste" type="number" min="0" max="95" placeholder="0"></div>
+          </div>
+          <div class="field">
+            <label>Pembulatan Harga Jual</label>
+            <select id="set-rounding">
+              <option value="100">Rp 100</option>
+              <option value="500">Rp 500</option>
+              <option value="1000">Rp 1.000</option>
+              <option value="2000">Rp 2.000</option>
+              <option value="5000">Rp 5.000</option>
+            </select>
+          </div>
+          <div class="divider"></div>
+          <div class="section-title" style="margin-top:0;">Satuan Custom</div>
+          <div id="unit-list"></div>
+          <div class="add-unit-row">
+            <div class="field" style="margin-bottom:0;"><label>Nama Satuan</label><input id="cu-name" type="text" placeholder="mis. loyang"></div>
+            <div class="field" style="margin-bottom:0;"><label>Isi per Satuan</label><input id="cu-factor" type="number" min="0" placeholder="jumlah"></div>
+            <div class="field" style="margin-bottom:0;"><label>Satuan Dasar</label>
+              <select id="cu-base"><option value="gram">gram</option><option value="ml">ml</option><option value="pcs">pcs</option></select>
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="addCustomUnit()">+ Tambah</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="section-title" style="margin-top:0;">Bisnis & Tampilan</div>
+          <div class="field"><label>Nama Bisnis</label><input id="set-bizname" type="text" placeholder="THE BIG GUYS"></div>
+          <div class="field"><label>Simbol Mata Uang</label><input id="set-currency" type="text" placeholder="Rp"></div>
+          <div class="field check-row"><input id="set-dark" type="checkbox" onchange="applyTheme(this.checked)"><label style="margin:0;">Mode Gelap</label></div>
+          <div class="divider"></div>
+          <div class="section-title" style="margin-top:0;">Kategori</div>
+          <div class="field"><label>Kategori Bahan Baku (pisahkan dengan koma)</label><input id="set-ingcats" type="text" placeholder="Protein, Roti, Dairy, ..."></div>
+          <div class="field"><label>Kategori Resep (pisahkan dengan koma)</label><input id="set-reccats" type="text" placeholder="Burger, Minuman, ..."></div>
+          <p class="hint">Kategori akan muncul sebagai saran otomatis saat menambah bahan atau resep baru.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<nav class="bottom-nav">
+  <button class="nav-btn active" data-page="dashboard">Dashboard</button>
+  <button class="nav-btn" data-page="ingredients">Bahan</button>
+  <button class="nav-btn" data-page="recipes">Resep</button>
+  <button class="nav-btn" data-page="batch">Batch</button>
+  <button class="nav-btn" data-page="plans">Rencana</button>
+  <button class="nav-btn" data-page="settings">Atur</button>
+</nav>
+
+<!-- Ingredient modal -->
+<div class="overlay" id="ov-ing">
+  <div class="modal">
+    <div class="modal-head"><h3 id="ing-title">Tambah Bahan Baku</h3><button class="modal-x" onclick="closeModal('ov-ing')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="ing-id">
+      <div class="form-grid">
+        <div class="field"><label>Nama Bahan</label><input id="ing-name" type="text" placeholder="mis. Daging Sapi Giling"></div>
+        <div class="field"><label>Kategori</label><input id="ing-category" type="text" list="dl-ingcats" placeholder="opsional"></div>
+        <div class="field"><label>Satuan</label><input id="ing-unit" type="text" placeholder="gram / ml / pcs"></div>
+        <div class="field"><label>Harga per Satuan</label><input id="ing-price" type="number" min="0" placeholder="0"></div>
+        <div class="field"><label>Susut (%)</label><input id="ing-waste" type="number" min="0" max="95" placeholder="0"></div>
+      </div>
+      <div class="divider"></div>
+      <div class="section-title" style="margin-top:0;">Kalkulator Konversi Harga Beli</div>
+      <p class="hint" style="margin-top:0;margin-bottom:10px;">Punya harga beli dalam kemasan besar? Hitung otomatis harga per satuan dasar.</p>
+      <div class="form-grid c3">
+        <div class="field"><label>Harga Beli</label><input id="conv-price" type="number" min="0" placeholder="mis. 60000"></div>
+        <div class="field"><label>Jumlah Kemasan</label><input id="conv-qty" type="number" min="0" placeholder="mis. 1"></div>
+        <div class="field"><label>Satuan Kemasan</label><select id="conv-unit"></select></div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="applyConversion()">Hitung & Isi Harga</button>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('ov-ing')">Batal</button>
+      <button class="btn btn-red" onclick="saveIngredient()">Simpan Bahan</button>
+    </div>
+  </div>
+</div>
+
+<!-- Recipe modal -->
+<div class="overlay" id="ov-rec">
+  <div class="modal" style="max-width:720px;">
+    <div class="modal-head"><h3 id="rec-title">Tambah Resep</h3><button class="modal-x" onclick="closeModal('ov-rec')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="rec-id">
+      <div class="form-grid">
+        <div class="field"><label>Nama Resep</label><input id="rec-name" type="text" placeholder="mis. Cheeseburger Klasik"></div>
+        <div class="field"><label>Kategori</label><input id="rec-category" type="text" list="dl-reccats" placeholder="opsional"></div>
+        <div class="field"><label>Hasil (Yield)</label><input id="rec-yield" type="number" min="0" step="0.1" value="1"></div>
+        <div class="field"><label>Satuan Hasil</label><input id="rec-yield-unit" type="text" placeholder="porsi / pcs"></div>
+        <div class="field"><label>Waktu Persiapan (menit) <span class="hint" style="display:inline;">— tarif <b id="rec-rate-hint">belum diatur</b></span></label><input id="rec-preptime" type="number" min="0" placeholder="0"></div>
+        <div class="field"><label>Biaya Lain-lain (Rp)</label><input id="rec-overhead" type="number" min="0" placeholder="0"></div>
+      </div>
+
+      <div class="divider"></div>
+      <div class="section-title" style="margin-top:0;">Komposisi Bahan</div>
+      <div id="rec-items"></div>
+      <button class="btn btn-ghost btn-sm" onclick="addItemRow()">+ Tambah Bahan</button>
+
+      <div class="divider"></div>
+      <div class="section-title" style="margin-top:0;">Rincian Biaya</div>
+      <div class="bd" id="rec-breakdown"></div>
+
+      <div class="divider"></div>
+      <div class="form-grid">
+        <div class="field"><label>Harga Jual</label><input id="rec-sell" type="number" min="0" placeholder="0"></div>
+        <div class="field">
+          <label>Target Margin (%)</label>
+          <div style="display:flex;gap:8px;">
+            <input id="rec-target-margin" type="number" min="0" max="95" placeholder="mis. 60" style="flex:1;">
+            <button class="btn btn-ghost btn-sm" onclick="applyTargetMargin()">Hitung Harga</button>
+          </div>
+        </div>
+      </div>
+      <div class="hint">Margin saat ini: <b id="rec-margin-view" style="font-weight:700;">-</b></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('ov-rec')">Batal</button>
+      <button class="btn btn-red" onclick="saveRecipe()">Simpan Resep</button>
+    </div>
+  </div>
+</div>
+
+<!-- History modal -->
+<div class="overlay" id="ov-hist">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-head"><h3 id="hist-title">Riwayat Harga</h3><button class="modal-x" onclick="closeModal('ov-hist')">✕</button></div>
+    <div class="modal-body" id="hist-body"></div>
+  </div>
+</div>
+
+<!-- Breakdown -->
+<div class="overlay" id="ov-break">
+  <div class="modal" style="max-width:520px;">
+    <div class="modal-head"><h3 id="break-title">Rincian Biaya</h3><button class="modal-x" onclick="closeModal('ov-break')">✕</button></div>
+    <div class="modal-body" id="break-body"></div>
+  </div>
+</div>
+<datalist id="dl-ingcats"></datalist>
+<datalist id="dl-reccats"></datalist>
+<div class="toast" id="toast">
+  <svg viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></svg>
+  <span id="toast-msg"></span>
+</div>
+<script>
+/* ================= STATE & STORAGE ================= */
+const K_ING='tbg_ingredients', K_REC='tbg_recipes', K_PLANS='tbg_plans', K_PLAN_LEGACY='tbg_plan', K_SET='tbg_settings';
+const DEFAULT_SETTINGS={hourlyRate:0,overheadPct:0,targetMargin:0,wasteDefault:0,rounding:500,bizName:'THE BIG GUYS',currency:'Rp',dark:false,ingCats:[],recCats:[],customUnits:[]};
+let ingredients=[], recipes=[], plans=[], activePlanId=null, settings={...DEFAULT_SETTINGS};
+
+const HAS_CLOUD = (typeof window!=='undefined' && !!window.storage);
+async function sGet(key){
+  if(HAS_CLOUD){ try{ return await window.storage.get(key); }catch(e){ return null; } }
+  try{ const v=localStorage.getItem(key); return v!==null?{key,value:v}:null; }catch(e){ return null; }
+}
+async function sSet(key,value){
+  if(HAS_CLOUD){ try{ return await window.storage.set(key,value); }catch(e){ console.error(e); return null; } }
+  try{ localStorage.setItem(key,value); return {key,value}; }catch(e){ console.error(e); return null; }
+}
+
+function uid(p){ return p+'_'+Date.now()+'_'+Math.floor(Math.random()*100000); }
+function fmtRp(n){ n=Math.round(n||0); const p=(settings.currency??'Rp').trim(); return (p?p+' ':'')+n.toLocaleString('id-ID'); }
+function fmtNum(n){ return (n||0).toLocaleString('id-ID',{maximumFractionDigits:2}); }
+function esc(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+let toastTimer=null;
+function toast(msg){
+  document.getElementById('toast-msg').textContent=msg;
+  const t=document.getElementById('toast');
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('show'),2400);
+}
+
+function seedIngredients(){
+  const now=new Date().toISOString();
+  return [
+    {id:uid('ing'),name:'Daging Sapi Giling',unit:'gram',price:120,waste:0,category:'Protein',history:[{date:now,price:120}]},
+    {id:uid('ing'),name:'Roti Burger (Bun)',unit:'pcs',price:4500,waste:0,category:'Roti',history:[{date:now,price:4500}]},
+    {id:uid('ing'),name:'Keju Cheddar Slice',unit:'pcs',price:1800,waste:0,category:'Dairy',history:[{date:now,price:1800}]},
+    {id:uid('ing'),name:'The Big Guys Pickled Onions',unit:'gram',price:85,waste:0,category:'Pelengkap',history:[{date:now,price:85}]},
+    {id:uid('ing'),name:'Saus Spesial',unit:'ml',price:40,waste:0,category:'Saus',history:[{date:now,price:40}]}
+  ];
+}
+
+async function loadData(){
+  try{ const r=await sGet(K_ING); ingredients=r?JSON.parse(r.value):seedIngredients(); }
+  catch(e){ ingredients=seedIngredients(); }
+  try{ const r=await sGet(K_REC); recipes=r?JSON.parse(r.value):[]; }
+  catch(e){ recipes=[]; }
+  try{ const r=await sGet(K_SET); settings=r?{...DEFAULT_SETTINGS,...JSON.parse(r.value)}:{...DEFAULT_SETTINGS}; }
+  catch(e){ settings={...DEFAULT_SETTINGS}; }
+  try{
+    const r=await sGet(K_PLANS);
+    if(r){ plans=JSON.parse(r.value); }
+    else{
+      // migrate legacy single plan
+      const leg=await sGet(K_PLAN_LEGACY);
+      if(leg){
+        const items=JSON.parse(leg.value);
+        plans = (Array.isArray(items)&&items.length) ? [{id:uid('plan'),name:'Rencana 1',items}] : [];
+      }else plans=[];
+    }
+  }catch(e){ plans=[]; }
+  if(plans.length && !activePlanId) activePlanId=plans[0].id;
+  fillSettingsForm();
+  applyTheme(settings.dark);
+  renderAll();
+}
+const saveIng =()=>sSet(K_ING,JSON.stringify(ingredients));
+const saveRec =()=>sSet(K_REC,JSON.stringify(recipes));
+const savePlans=()=>sSet(K_PLANS,JSON.stringify(plans));
+
+function fillSettingsForm(){
+  document.getElementById('set-rate').value=settings.hourlyRate||'';
+  document.getElementById('set-overhead').value=settings.overheadPct||'';
+  document.getElementById('set-margin').value=settings.targetMargin||'';
+  document.getElementById('set-waste').value=settings.wasteDefault||'';
+  document.getElementById('set-rounding').value=String(settings.rounding||500);
+  document.getElementById('set-bizname').value=settings.bizName||'';
+  document.getElementById('set-currency').value=settings.currency??'Rp';
+  document.getElementById('set-dark').checked=!!settings.dark;
+  document.getElementById('set-ingcats').value=(settings.ingCats||[]).join(', ');
+  document.getElementById('set-reccats').value=(settings.recCats||[]).join(', ');
+  renderCustomUnits();
+  renderCatDatalists();
+  updatePrintHead();
+}
+function parseCats(v){ return v.split(',').map(s=>s.trim()).filter(Boolean); }
+function renderCatDatalists(){
+  document.getElementById('dl-ingcats').innerHTML=(settings.ingCats||[]).map(c=>`<option value="${esc(c)}">`).join('');
+  document.getElementById('dl-reccats').innerHTML=(settings.recCats||[]).map(c=>`<option value="${esc(c)}">`).join('');
+}
+function updatePrintHead(){
+  document.getElementById('ph-name').textContent=settings.bizName||'THE BIG GUYS';
+  document.getElementById('ph-sub').textContent='Recipe Costing • dicetak '+new Date().toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});
+}
+function applyTheme(dark){
+  document.documentElement.dataset.theme = dark ? 'dark' : '';
+}
+function renderCustomUnits(){
+  const el=document.getElementById('unit-list');
+  const units=settings.customUnits||[];
+  el.innerHTML=units.length?units.map((u,idx)=>`
+    <div class="unit-row">
+      <div><div class="u-n">${esc(u.name)}</div><div class="u-d">1 ${esc(u.name)} = ${fmtNum(u.factor)} ${esc(u.base)}</div></div>
+      <button class="act danger" onclick="removeCustomUnit(${idx})">Hapus</button>
+    </div>`).join(''):'<p class="hint" style="margin:0;">Belum ada satuan custom.</p>';
+}
+async function addCustomUnit(){
+  const name=document.getElementById('cu-name').value.trim();
+  const factor=parseFloat(document.getElementById('cu-factor').value)||0;
+  const base=document.getElementById('cu-base').value;
+  if(!name||factor<=0){ toast('Isi nama & isi per satuan'); return; }
+  settings.customUnits=settings.customUnits||[];
+  settings.customUnits.push({name,factor,base});
+  document.getElementById('cu-name').value='';
+  document.getElementById('cu-factor').value='';
+  await sSet(K_SET,JSON.stringify(settings));
+  renderCustomUnits();
+  toast('Satuan "'+name+'" ditambahkan');
+}
+async function removeCustomUnit(idx){
+  settings.customUnits.splice(idx,1);
+  await sSet(K_SET,JSON.stringify(settings));
+  renderCustomUnits();
+}
+
+async function saveSettings(){
+  settings.hourlyRate=parseFloat(document.getElementById('set-rate').value)||0;
+  settings.overheadPct=Math.min(100,Math.max(0,parseFloat(document.getElementById('set-overhead').value)||0));
+  settings.targetMargin=Math.min(95,Math.max(0,parseFloat(document.getElementById('set-margin').value)||0));
+  settings.wasteDefault=Math.min(95,Math.max(0,parseFloat(document.getElementById('set-waste').value)||0));
+  settings.rounding=parseInt(document.getElementById('set-rounding').value)||500;
+  settings.bizName=document.getElementById('set-bizname').value.trim()||'THE BIG GUYS';
+  settings.currency=document.getElementById('set-currency').value;
+  settings.dark=document.getElementById('set-dark').checked;
+  settings.ingCats=parseCats(document.getElementById('set-ingcats').value);
+  settings.recCats=parseCats(document.getElementById('set-reccats').value);
+  await sSet(K_SET,JSON.stringify(settings));
+  applyTheme(settings.dark);
+  renderCatDatalists();
+  updatePrintHead();
+  toast('Pengaturan tersimpan');
+  renderAll();
+}
+
+/* ================= NAV ================= */
+function goPage(page){
+  document.querySelectorAll('[data-page]').forEach(b=>b.classList.toggle('active', b.dataset.page===page));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+page).classList.add('active');
+  if(page==='batch') renderBatch();
+  if(page==='plans') renderPlans();
+  if(page==='settings') fillSettingsForm();
+  window.scrollTo({top:0});
+}
+document.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',()=>goPage(b.dataset.page)));
+function closeModal(id){ document.getElementById(id).classList.remove('show'); }
+function openModal(id){ document.getElementById(id).classList.add('show'); }
+document.querySelectorAll('.overlay').forEach(ov=>{
+  ov.addEventListener('click',e=>{ if(e.target===ov) ov.classList.remove('show'); });
+});
+
+/* ================= COST MODEL ================= */
+function effectivePrice(ing){
+  const f=1-((ing.waste||0)/100);
+  return f>0 ? (ing.price||0)/f : (ing.price||0);
+}
+function recipeCost(rec){
+  let ingCost=0;
+  (rec.items||[]).forEach(it=>{
+    const ing=ingredients.find(i=>i.id===it.ingredientId);
+    if(ing) ingCost+=effectivePrice(ing)*(it.qty||0);
+  });
+  const prepMinutes=rec.prepMinutes||0;
+  const laborCost=(prepMinutes/60)*(settings.hourlyRate||0) + ((!prepMinutes&&rec.labor)?rec.labor:0);
+  const autoOverhead=ingCost*((settings.overheadPct||0)/100);
+  const manualOverhead=rec.overhead||0;
+  const overheadCost=autoOverhead+manualOverhead;
+  const total=ingCost+laborCost+overheadCost;
+  const perUnit=rec.yieldQty?total/rec.yieldQty:total;
+  let margin=null,profit=null;
+  if(rec.sellPrice){ profit=rec.sellPrice-perUnit; margin=(profit/rec.sellPrice)*100; }
+  return {ingCost,laborCost,overheadCost,autoOverhead,manualOverhead,total,perUnit,margin,profit,prepMinutes};
+}
+function marginBadge(m){
+  if(m===null||m===undefined) return '<span class="badge gray">-</span>';
+  const cls = m>=50?'green' : (m>=25?'amber':'red');
+  return `<span class="badge ${cls}">${m.toFixed(1)}%</span>`;
+}
+
+/* ================= RENDER ALL ================= */
+function renderAll(){
+  renderDashboard();
+  renderIngredients();
+  renderRecipes();
+  renderBatchOptions();
+  renderPlans();
+  document.getElementById('sb-rate').textContent = settings.hourlyRate?fmtRp(settings.hourlyRate)+'/jam':'belum diatur';
+  updatePrintHead();
+}
+
+/* ================= DASHBOARD ================= */
+const ICONS={
+  box:'<svg viewBox="0 0 24 24"><path d="M3 8l9-5 9 5-9 5-9-5z"/><path d="M3 8v8l9 5 9-5V8"/></svg>',
+  doc:'<svg viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M8 10h8M8 14h8"/></svg>',
+  coin:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M15 9.5c0-1.4-1.3-2-3-2s-3 .6-3 2 1.3 1.8 3 2 3 .8 3 2-1.3 2-3 2-3-.6-3-2"/></svg>',
+  chart:'<svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M21 20H3"/></svg>'
+};
+function renderDashboard(){
+  const withM=recipes.filter(r=>r.sellPrice);
+  const avgHpp=recipes.length?recipes.reduce((s,r)=>s+recipeCost(r).perUnit,0)/recipes.length:0;
+  const avgM=withM.length?withM.reduce((s,r)=>s+recipeCost(r).margin,0)/withM.length:null;
+  document.getElementById('dash-stats').innerHTML=`
+    <div class="stat"><div class="ic">${ICONS.box}</div><div class="lbl">Bahan Baku</div><div class="val">${ingredients.length}</div><div class="sub">item terdaftar</div></div>
+    <div class="stat"><div class="ic">${ICONS.doc}</div><div class="lbl">Resep</div><div class="val">${recipes.length}</div><div class="sub">${withM.length} sudah ada harga jual</div></div>
+    <div class="stat"><div class="ic">${ICONS.coin}</div><div class="lbl">Rata-rata HPP / Unit</div><div class="val">${fmtRp(avgHpp)}</div><div class="sub">semua resep</div></div>
+    <div class="stat"><div class="ic">${ICONS.chart}</div><div class="lbl">Rata-rata Margin</div><div class="val">${avgM!==null?avgM.toFixed(1)+'%':'-'}</div><div class="sub">${avgM!==null?'dari resep ber-harga jual':'isi harga jual di resep'}</div></div>
+  `;
+
+  // top margin
+  const top=document.getElementById('dash-top-margin');
+  const sorted=withM.map(r=>({r,c:recipeCost(r)})).sort((a,b)=>b.c.margin-a.c.margin).slice(0,5);
+  if(!sorted.length){
+    top.innerHTML=emptyState('chart','Belum ada data margin','Tambahkan harga jual di resep untuk melihat peringkat margin.');
+  }else{
+    top.innerHTML=`<table><thead><tr><th>Resep</th><th class="num">HPP/Unit</th><th style="text-align:center;">Margin</th></tr></thead><tbody>`+
+      sorted.map(({r,c})=>`<tr><td><span class="t-name">${esc(r.name)}</span></td><td class="num">${fmtRp(c.perUnit)}</td><td style="text-align:center;">${marginBadge(c.margin)}</td></tr>`).join('')+
+      `</tbody></table>`;
+  }
+
+  // price moves
+  const moves=[];
+  ingredients.forEach(i=>{
+    const h=i.history||[];
+    if(h.length>=2){
+      const last=h[h.length-1], prev=h[h.length-2];
+      const diff=last.price-prev.price;
+      if(diff!==0) moves.push({name:i.name,unit:i.unit,date:last.date,diff,now:last.price});
+    }
+  });
+  moves.sort((a,b)=>new Date(b.date)-new Date(a.date));
+  const pm=document.getElementById('dash-price-moves');
+  if(!moves.length){
+    pm.innerHTML=emptyState('box','Belum ada perubahan harga','Edit harga bahan; setiap perubahan tercatat otomatis di sini.');
+  }else{
+    pm.innerHTML=`<table><thead><tr><th>Bahan</th><th class="num">Harga Kini</th><th class="num">Perubahan</th></tr></thead><tbody>`+
+      moves.slice(0,5).map(m=>{
+        const cls=m.diff>0?'tr-up':'tr-down';
+        const sign=m.diff>0?'+':'';
+        return `<tr><td><span class="t-name">${esc(m.name)}</span><div class="t-sub">${new Date(m.date).toLocaleDateString('id-ID',{day:'2-digit',month:'short'})}</div></td><td class="num">${fmtRp(m.now)}/${esc(m.unit)}</td><td class="num ${cls}">${sign}${fmtRp(m.diff)}</td></tr>`;
+      }).join('')+`</tbody></table>`;
+  }
+}
+function emptyState(icon,title,desc,cta){
+  return `<div class="empty"><div class="eic">${ICONS[icon]||ICONS.box}</div><h4>${title}</h4><p>${desc}</p>${cta||''}</div>`;
+}
+
+/* ================= INGREDIENTS ================= */
+function renderIngredients(){
+  const q=(document.getElementById('ing-search').value||'').toLowerCase();
+  const list=ingredients.filter(i=>i.name.toLowerCase().includes(q)||(i.category||'').toLowerCase().includes(q));
+  document.getElementById('ing-count').textContent=list.length+' bahan';
+  const tbody=document.getElementById('ing-tbody');
+  const cards=document.getElementById('ing-cards');
+  const empty=document.getElementById('ing-empty');
+  if(!list.length){
+    tbody.innerHTML=''; cards.innerHTML='';
+    empty.innerHTML=emptyState('box', q?'Tidak ditemukan':'Belum ada bahan baku', q?'Coba kata kunci lain.':'Tambahkan bahan pertama untuk mulai menghitung HPP.',
+      q?'':'<button class="btn btn-red btn-sm" onclick="openIngredientForm()">+ Tambah Bahan</button>');
+    return;
+  }
+  empty.innerHTML='';
+  tbody.innerHTML=list.map(i=>`
+    <tr>
+      <td><span class="t-name">${esc(i.name)}</span><div class="t-sub">${i.category?`<span class="chip">${esc(i.category)}</span>`:''}</div></td>
+      <td class="num">${fmtRp(i.price)} <span style="color:var(--g400);">/ ${esc(i.unit)}</span></td>
+      <td class="num">${i.waste?i.waste+'%':'-'}</td>
+      <td class="num"><b>${fmtRp(effectivePrice(i))}</b></td>
+      <td><div class="row-actions">
+        <button class="act" onclick="openHistory('${i.id}')">Riwayat</button>
+        <button class="act" onclick="openIngredientForm('${i.id}')">Edit</button>
+        <button class="act danger" onclick="deleteIngredient('${i.id}')">Hapus</button>
+      </div></td>
+    </tr>`).join('');
+  cards.innerHTML=list.map(i=>`
+    <div class="m-card">
+      <div class="top"><div><div class="t-name">${esc(i.name)}</div>${i.category?`<span class="chip">${esc(i.category)}</span>`:''}</div></div>
+      <div class="kv"><span>Harga / ${esc(i.unit)}</span><b>${fmtRp(i.price)}</b></div>
+      <div class="kv"><span>Susut</span><b>${i.waste?i.waste+'%':'-'}</b></div>
+      <div class="kv"><span>Harga Efektif</span><b>${fmtRp(effectivePrice(i))}</b></div>
+      <div class="row-actions">
+        <button class="act" onclick="openHistory('${i.id}')">Riwayat</button>
+        <button class="act" onclick="openIngredientForm('${i.id}')">Edit</button>
+        <button class="act danger" onclick="deleteIngredient('${i.id}')">Hapus</button>
+      </div>
+    </div>`).join('');
+}
+
+function openIngredientForm(id){
+  document.getElementById('ing-id').value=id||'';
+  document.getElementById('conv-price').value='';
+  document.getElementById('conv-qty').value='';
+  // rebuild conversion units incl. custom
+  const baseUnits=[['1|gram','gram'],['1000|gram','kg → gram'],['1|ml','ml'],['1000|ml','liter → ml'],['1|pcs','pcs'],['12|pcs','lusin → pcs']];
+  const custom=(settings.customUnits||[]).map(u=>[u.factor+'|'+u.base, u.name+' → '+u.base+' ('+u.factor+')']);
+  document.getElementById('conv-unit').innerHTML=[...baseUnits,...custom].map(([v,l])=>`<option value="${v}">${esc(l)}</option>`).join('');
+  if(id){
+    const i=ingredients.find(x=>x.id===id);
+    document.getElementById('ing-title').textContent='Edit Bahan Baku';
+    document.getElementById('ing-name').value=i.name;
+    document.getElementById('ing-unit').value=i.unit;
+    document.getElementById('ing-price').value=i.price;
+    document.getElementById('ing-waste').value=i.waste||'';
+    document.getElementById('ing-category').value=i.category||'';
+  }else{
+    document.getElementById('ing-title').textContent='Tambah Bahan Baku';
+    ['ing-name','ing-unit','ing-price','ing-category'].forEach(x=>document.getElementById(x).value='');
+    document.getElementById('ing-waste').value=settings.wasteDefault||'';
+  }
+  openModal('ov-ing');
+}
+function applyConversion(){
+  const price=parseFloat(document.getElementById('conv-price').value)||0;
+  const qty=parseFloat(document.getElementById('conv-qty').value)||0;
+  const [fStr,base]=document.getElementById('conv-unit').value.split('|');
+  if(!price||!qty){ toast('Isi harga beli & jumlah dulu'); return; }
+  const perUnit=price/(qty*parseFloat(fStr));
+  document.getElementById('ing-price').value=Math.round(perUnit*100)/100;
+  const unitEl=document.getElementById('ing-unit');
+  if(!unitEl.value.trim()) unitEl.value=base;
+  toast('Harga per '+base+' terisi otomatis');
+}
+async function saveIngredient(){
+  const id=document.getElementById('ing-id').value;
+  const name=document.getElementById('ing-name').value.trim();
+  const unit=document.getElementById('ing-unit').value.trim();
+  const price=parseFloat(document.getElementById('ing-price').value)||0;
+  const waste=Math.min(95,Math.max(0,parseFloat(document.getElementById('ing-waste').value)||0));
+  const category=document.getElementById('ing-category').value.trim();
+  if(!name||!unit){ toast('Nama & satuan wajib diisi'); return; }
+  const now=new Date().toISOString();
+  if(id){
+    const i=ingredients.find(x=>x.id===id);
+    if(i.price!==price){ i.history=i.history||[]; i.history.push({date:now,price}); }
+    Object.assign(i,{name,unit,price,waste,category});
+  }else{
+    ingredients.push({id:uid('ing'),name,unit,price,waste,category,history:[{date:now,price}]});
+  }
+  await saveIng();
+  closeModal('ov-ing');
+  toast(id?'Bahan diperbarui':'Bahan ditambahkan');
+  renderAll();
+}
+async function deleteIngredient(id){
+  const used=recipes.filter(r=>(r.items||[]).some(it=>it.ingredientId===id));
+  if(used.length && !confirm('Bahan ini dipakai di '+used.length+' resep. Tetap hapus?')) return;
+  if(!used.length && !confirm('Hapus bahan ini?')) return;
+  ingredients=ingredients.filter(i=>i.id!==id);
+  await saveIng();
+  toast('Bahan dihapus');
+  renderAll();
+}
+function openHistory(id){
+  const i=ingredients.find(x=>x.id===id);
+  document.getElementById('hist-title').textContent='Riwayat — '+i.name;
+  const h=(i.history||[]);
+  const body=document.getElementById('hist-body');
+  if(!h.length){ body.innerHTML='<p class="hint">Belum ada riwayat.</p>'; openModal('ov-hist'); return; }
+  const max=Math.max(...h.map(x=>x.price));
+  const bars=h.slice(-12).map((x,idx,arr)=>{
+    const hgt=Math.max(10,(x.price/max)*100);
+    return `<div class="bar ${idx===arr.length-1?'last':''}" style="height:${hgt}%" title="${fmtRp(x.price)}"></div>`;
+  }).join('');
+  const rows=h.slice().reverse().map((x,idx,arr)=>{
+    const older=arr[idx+1];
+    let d='';
+    if(older){
+      const diff=x.price-older.price;
+      if(diff!==0){
+        const cls=diff>0?'tr-up':'tr-down';
+        d=` <span class="${cls}" style="font-size:11.5px;">(${diff>0?'+':''}${fmtRp(diff)})</span>`;
+      }
+    }
+    return `<div class="hist-row"><span class="d">${new Date(x.date).toLocaleDateString('id-ID',{day:'2-digit',month:'short',year:'numeric'})}</span><span class="p">${fmtRp(x.price)}/${esc(i.unit)}${d}</span></div>`;
+  }).join('');
+  body.innerHTML=`<div class="hist-bars">${bars}</div>${rows}`;
+  openModal('ov-hist');
+}
+
+/* ================= RECIPES ================= */
+let currentItems=[];
+function renderRecipes(){
+  const q=(document.getElementById('rec-search').value||'').toLowerCase();
+  const list=recipes.filter(r=>r.name.toLowerCase().includes(q)||(r.category||'').toLowerCase().includes(q));
+  document.getElementById('rec-count').textContent=list.length+' resep';
+  const tbody=document.getElementById('rec-tbody');
+  const cards=document.getElementById('rec-cards');
+  const empty=document.getElementById('rec-empty');
+  if(!list.length){
+    tbody.innerHTML=''; cards.innerHTML='';
+    empty.innerHTML=emptyState('doc', q?'Tidak ditemukan':'Belum ada resep', q?'Coba kata kunci lain.':'Susun resep pertama dari bahan baku yang sudah ada.',
+      q?'':'<button class="btn btn-red btn-sm" onclick="openRecipeForm()">+ Tambah Resep</button>');
+    return;
+  }
+  empty.innerHTML='';
+  const rows=list.map(r=>{
+    const c=recipeCost(r);
+    return {r,c};
+  });
+  tbody.innerHTML=rows.map(({r,c})=>`
+    <tr>
+      <td>
+        <span class="t-name">${esc(r.name)}</span>
+        <div class="t-sub">${r.category?`<span class="chip">${esc(r.category)}</span> `:''}hasil ${r.yieldQty} ${esc(r.yieldUnit||'')}${r.prepMinutes?' • '+r.prepMinutes+' mnt':''}</div>
+      </td>
+      <td class="num"><b>${fmtRp(c.perUnit)}</b><div class="t-sub" style="text-align:right;">${fmtRp(c.total)} total</div></td>
+      <td class="num">${r.sellPrice?fmtRp(r.sellPrice):'-'}</td>
+      <td style="text-align:center;">${marginBadge(c.margin)}</td>
+      <td><div class="row-actions">
+        <button class="act" onclick="openBreakdown('${r.id}')">Rincian</button>
+        <button class="act" onclick="duplicateRecipe('${r.id}')">Duplikat</button>
+        <button class="act" onclick="openRecipeForm('${r.id}')">Edit</button>
+        <button class="act danger" onclick="deleteRecipe('${r.id}')">Hapus</button>
+      </div></td>
+    </tr>`).join('');
+  cards.innerHTML=rows.map(({r,c})=>`
+    <div class="m-card">
+      <div class="top">
+        <div><div class="t-name">${esc(r.name)}</div><div class="t-sub">${r.category?esc(r.category)+' • ':''}hasil ${r.yieldQty} ${esc(r.yieldUnit||'')}</div></div>
+        ${marginBadge(c.margin)}
+      </div>
+      <div class="kv"><span>HPP / unit</span><b>${fmtRp(c.perUnit)}</b></div>
+      <div class="kv"><span>HPP total</span><b>${fmtRp(c.total)}</b></div>
+      <div class="kv"><span>Harga jual</span><b>${r.sellPrice?fmtRp(r.sellPrice):'-'}</b></div>
+      <div class="row-actions">
+        <button class="act" onclick="openBreakdown('${r.id}')">Rincian</button>
+        <button class="act" onclick="duplicateRecipe('${r.id}')">Duplikat</button>
+        <button class="act" onclick="openRecipeForm('${r.id}')">Edit</button>
+        <button class="act danger" onclick="deleteRecipe('${r.id}')">Hapus</button>
+      </div>
+    </div>`).join('');
+}
+
+function openRecipeForm(id){
+  if(!ingredients.length){ toast('Tambahkan bahan baku dulu'); goPage('ingredients'); return; }
+  document.getElementById('rec-id').value=id||'';
+  document.getElementById('rec-rate-hint').textContent=settings.hourlyRate?fmtRp(settings.hourlyRate)+'/jam':'belum diatur — buka Pengaturan';
+  if(id){
+    const r=recipes.find(x=>x.id===id);
+    document.getElementById('rec-title').textContent='Edit Resep';
+    document.getElementById('rec-name').value=r.name;
+    document.getElementById('rec-category').value=r.category||'';
+    document.getElementById('rec-yield').value=r.yieldQty;
+    document.getElementById('rec-yield-unit').value=r.yieldUnit||'';
+    document.getElementById('rec-preptime').value=r.prepMinutes||'';
+    document.getElementById('rec-overhead').value=r.overhead||'';
+    document.getElementById('rec-sell').value=r.sellPrice||'';
+    document.getElementById('rec-target-margin').value='';
+    currentItems=(r.items||[]).map(it=>({...it}));
+  }else{
+    document.getElementById('rec-title').textContent='Tambah Resep';
+    document.getElementById('rec-name').value='';
+    document.getElementById('rec-category').value='';
+    document.getElementById('rec-yield').value='1';
+    document.getElementById('rec-yield-unit').value='porsi';
+    document.getElementById('rec-preptime').value='';
+    document.getElementById('rec-overhead').value='';
+    document.getElementById('rec-sell').value='';
+    document.getElementById('rec-target-margin').value=settings.targetMargin||'';
+    currentItems=[];
+  }
+  if(!currentItems.length) currentItems.push({ingredientId:ingredients[0].id,qty:0});
+  renderItemRows();
+  openModal('ov-rec');
+}
+function addItemRow(){ currentItems.push({ingredientId:ingredients[0].id,qty:0}); renderItemRows(); }
+function removeItemRow(idx){ currentItems.splice(idx,1); renderItemRows(); }
+function updateItemRow(idx,f,v){ currentItems[idx][f]=f==='qty'?(parseFloat(v)||0):v; renderItemRows(); }
+
+function calcFormTotals(){
+  const ingCost=currentItems.reduce((s,it)=>{
+    const ing=ingredients.find(i=>i.id===it.ingredientId);
+    return s+(ing?effectivePrice(ing)*it.qty:0);
+  },0);
+  const prep=parseFloat(document.getElementById('rec-preptime').value)||0;
+  const labor=(prep/60)*(settings.hourlyRate||0);
+  const autoOv=ingCost*((settings.overheadPct||0)/100);
+  const manualOv=parseFloat(document.getElementById('rec-overhead').value)||0;
+  const overhead=autoOv+manualOv;
+  const total=ingCost+labor+overhead;
+  const yieldQty=parseFloat(document.getElementById('rec-yield').value)||1;
+  const perUnit=yieldQty?total/yieldQty:total;
+  return {ingCost,prep,labor,autoOv,manualOv,overhead,total,yieldQty,perUnit};
+}
+function renderItemRows(){
+  const wrap=document.getElementById('rec-items');
+  wrap.innerHTML=currentItems.map((it,idx)=>{
+    const opts=ingredients.map(i=>`<option value="${i.id}" ${i.id===it.ingredientId?'selected':''}>${esc(i.name)} (${fmtRp(effectivePrice(i))}/${esc(i.unit)})</option>`).join('');
+    const ing=ingredients.find(i=>i.id===it.ingredientId);
+    const sub=ing?effectivePrice(ing)*it.qty:0;
+    return `<div class="item-row">
+      <select onchange="updateItemRow(${idx},'ingredientId',this.value)">${opts}</select>
+      <input type="number" value="${it.qty}" placeholder="jumlah" oninput="updateItemRow(${idx},'qty',this.value)">
+      <span class="sub">${fmtRp(sub)}</span>
+      <button class="rm" onclick="removeItemRow(${idx})">✕</button>
+    </div>`;
+  }).join('');
+  const t=calcFormTotals();
+  const autoOvRow=(settings.overheadPct||0)>0
+    ? `<div class="bd-row"><span class="l">Overhead Otomatis <span class="d">(${settings.overheadPct}% dari bahan)</span></span><span class="v">${fmtRp(t.autoOv)}</span></div>`
+    : '';
+  document.getElementById('rec-breakdown').innerHTML=`
+    <div class="bd-row"><span class="l">Biaya Bahan</span><span class="v">${fmtRp(t.ingCost)}</span></div>
+    <div class="bd-row"><span class="l">Biaya Tenaga Kerja <span class="d">(${t.prep} mnt × ${fmtRp(settings.hourlyRate||0)}/jam)</span></span><span class="v">${fmtRp(t.labor)}</span></div>
+    ${autoOvRow}
+    <div class="bd-row"><span class="l">Biaya Lain-lain</span><span class="v">${fmtRp(t.manualOv)}</span></div>
+    <div class="bd-row total"><span class="l">Total HPP</span><span class="v">${fmtRp(t.total)}</span></div>
+    <div class="bd-row hero"><span class="l">HPP per Unit</span><span class="v">${fmtRp(t.perUnit)}</span></div>
+  `;
+  updateMarginView();
+}
+function updateMarginView(){
+  const t=calcFormTotals();
+  const sell=parseFloat(document.getElementById('rec-sell').value)||0;
+  const el=document.getElementById('rec-margin-view');
+  if(sell>0){
+    const profit=sell-t.perUnit;
+    const m=(profit/sell)*100;
+    el.style.color=profit>=0?'var(--green)':'var(--red-dark)';
+    el.textContent=m.toFixed(1)+'% ('+fmtRp(profit)+'/unit)';
+  }else{ el.style.color='var(--g500)'; el.textContent='-'; }
+}
+function applyTargetMargin(){
+  const t=calcFormTotals();
+  const m=parseFloat(document.getElementById('rec-target-margin').value)||0;
+  if(m<=0||m>=100){ toast('Isi target margin 1–95%'); return; }
+  if(t.perUnit<=0){ toast('Isi bahan/biaya dulu agar HPP terbentuk'); return; }
+  const step=settings.rounding||500;
+  let sell=t.perUnit/(1-(m/100));
+  sell=Math.ceil(sell/step)*step;
+  document.getElementById('rec-sell').value=sell;
+  updateMarginView();
+  toast('Harga jual dihitung: '+fmtRp(sell));
+}
+['rec-preptime','rec-overhead','rec-yield'].forEach(id=>document.getElementById(id).addEventListener('input',renderItemRows));
+document.getElementById('rec-sell').addEventListener('input',updateMarginView);
+
+async function saveRecipe(){
+  const id=document.getElementById('rec-id').value;
+  const name=document.getElementById('rec-name').value.trim();
+  if(!name){ toast('Nama resep wajib diisi'); return; }
+  const items=currentItems.filter(it=>it.qty>0);
+  if(!items.length){ toast('Minimal 1 bahan dengan jumlah > 0'); return; }
+  const data={
+    name,
+    category:document.getElementById('rec-category').value.trim(),
+    yieldQty:parseFloat(document.getElementById('rec-yield').value)||1,
+    yieldUnit:document.getElementById('rec-yield-unit').value.trim(),
+    prepMinutes:parseFloat(document.getElementById('rec-preptime').value)||0,
+    overhead:parseFloat(document.getElementById('rec-overhead').value)||0,
+    sellPrice:parseFloat(document.getElementById('rec-sell').value)||0,
+    items
+  };
+  if(id){
+    const idx=recipes.findIndex(r=>r.id===id);
+    recipes[idx]={...recipes[idx],...data};
+  }else recipes.push({id:uid('rec'),...data});
+  await saveRec();
+  closeModal('ov-rec');
+  toast(id?'Resep diperbarui':'Resep ditambahkan');
+  renderAll();
+}
+async function duplicateRecipe(id){
+  const r=recipes.find(x=>x.id===id);
+  if(!r) return;
+  const copy=JSON.parse(JSON.stringify(r));
+  copy.id=uid('rec');
+  copy.name=r.name+' (Copy)';
+  recipes.push(copy);
+  await saveRec();
+  toast('Resep diduplikat — silakan edit');
+  renderAll();
+}
+async function deleteRecipe(id){
+  if(!confirm('Hapus resep ini?')) return;
+  recipes=recipes.filter(r=>r.id!==id);
+  plans.forEach(p=>{ p.items=(p.items||[]).filter(it=>it.recipeId!==id); });
+  await saveRec(); await savePlans();
+  toast('Resep dihapus');
+  renderAll();
+}
+function openBreakdown(id){
+  const r=recipes.find(x=>x.id===id);
+  if(!r) return;
+  const c=recipeCost(r);
+  document.getElementById('break-title').textContent='Rincian — '+r.name;
+  const ingRows=(r.items||[]).map(it=>{
+    const ing=ingredients.find(i=>i.id===it.ingredientId);
+    if(!ing) return '';
+    return `<div class="bd-row"><span class="l">${esc(ing.name)} <span class="d">${it.qty} ${esc(ing.unit)}${ing.waste?' • susut '+ing.waste+'%':''}</span></span><span class="v">${fmtRp(effectivePrice(ing)*it.qty)}</span></div>`;
+  }).join('');
+  let sellRows='';
+  if(r.sellPrice){
+    sellRows=`
+      <div class="bd-row"><span class="l">Harga Jual</span><span class="v">${fmtRp(r.sellPrice)}</span></div>
+      <div class="bd-row"><span class="l">Profit / Unit</span><span class="v" style="color:${c.profit>=0?'var(--green)':'var(--red-dark)'};">${fmtRp(c.profit)}</span></div>
+      <div class="bd-row"><span class="l">Margin</span><span class="v">${c.margin.toFixed(1)}%</span></div>`;
+  }
+  document.getElementById('break-body').innerHTML=`
+    <label style="margin-top:0;">Komponen Bahan</label>
+    <div class="bd">${ingRows||'<div class="bd-row"><span class="l">Tidak ada bahan</span></div>'}</div>
+    <label>Ringkasan Biaya</label>
+    <div class="bd">
+      <div class="bd-row"><span class="l">Total Biaya Bahan</span><span class="v">${fmtRp(c.ingCost)}</span></div>
+      <div class="bd-row"><span class="l">Biaya Tenaga Kerja <span class="d">(${c.prepMinutes||0} mnt × ${fmtRp(settings.hourlyRate||0)}/jam)</span></span><span class="v">${fmtRp(c.laborCost)}</span></div>
+      ${c.autoOverhead>0?`<div class="bd-row"><span class="l">Overhead Otomatis <span class="d">(${settings.overheadPct}% dari bahan)</span></span><span class="v">${fmtRp(c.autoOverhead)}</span></div>`:''}
+      <div class="bd-row"><span class="l">Biaya Lain-lain</span><span class="v">${fmtRp(c.manualOverhead)}</span></div>
+      <div class="bd-row total"><span class="l">TOTAL HPP</span><span class="v">${fmtRp(c.total)}</span></div>
+      <div class="bd-row hero"><span class="l">HPP per ${esc(r.yieldUnit||'unit')}</span><span class="v">${fmtRp(c.perUnit)}</span></div>
+      ${sellRows}
+    </div>`;
+  openModal('ov-break');
+}
+
+/* ================= BATCH ================= */
+function renderBatchOptions(){
+  const sel=document.getElementById('batch-recipe');
+  const cur=sel.value;
+  sel.innerHTML=recipes.map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join('')||'<option value="">Belum ada resep</option>';
+  if(cur && recipes.some(r=>r.id===cur)) sel.value=cur;
+}
+function syncFromMult(){
+  const rec=recipes.find(r=>r.id===document.getElementById('batch-recipe').value);
+  if(!rec) return;
+  const m=parseFloat(document.getElementById('batch-mult').value)||0;
+  document.getElementById('batch-target').value=Math.round(rec.yieldQty*m*100)/100;
+  renderBatch();
+}
+function syncFromTarget(){
+  const rec=recipes.find(r=>r.id===document.getElementById('batch-recipe').value);
+  if(!rec) return;
+  const t=parseFloat(document.getElementById('batch-target').value)||0;
+  document.getElementById('batch-mult').value=rec.yieldQty?Math.round((t/rec.yieldQty)*100)/100:0;
+  renderBatch();
+}
+function renderBatch(){
+  const rec=recipes.find(r=>r.id===document.getElementById('batch-recipe').value);
+  const box=document.getElementById('batch-result');
+  if(!rec){
+    box.innerHTML='<div class="card">'+emptyState('doc','Belum ada resep','Buat resep dulu untuk memakai kalkulator batch.','<button class="btn btn-red btn-sm" onclick="goPage(\'recipes\')">Ke halaman Resep</button>')+'</div>';
+    return;
+  }
+  const mult=parseFloat(document.getElementById('batch-mult').value)||1;
+  const sell=parseFloat(document.getElementById('batch-sell').value)||rec.sellPrice||0;
+  const c=recipeCost(rec);
+  const totalCost=c.total*mult, totalYield=rec.yieldQty*mult;
+  const revenue=sell*totalYield, profit=revenue-totalCost;
+  const marginPct=revenue?(profit/revenue)*100:null;
+
+  let stats=`
+    <div class="stat-grid">
+      <div class="stat"><div class="lbl">Total Hasil</div><div class="val">${fmtNum(totalYield)} ${esc(rec.yieldUnit||'')}</div><div class="sub">×${mult} batch</div></div>
+      <div class="stat"><div class="lbl">Total Modal</div><div class="val">${fmtRp(totalCost)}</div><div class="sub">semua komponen</div></div>
+      <div class="stat"><div class="lbl">HPP / ${esc(rec.yieldUnit||'unit')}</div><div class="val">${fmtRp(c.perUnit)}</div><div class="sub">tetap per unit</div></div>
+      ${sell>0?`<div class="stat"><div class="lbl">Profit & Margin</div><div class="val" style="color:${profit>=0?'var(--green)':'var(--red-dark)'};">${fmtRp(profit)}</div><div class="sub">margin ${marginPct.toFixed(1)}% • omzet ${fmtRp(revenue)}</div></div>`:''}
+    </div>`;
+
+  const comp=`
+    <div class="section-title">Komponen Biaya <span class="count">×${mult}</span></div>
+    <div class="bd" style="background:var(--surface);">
+      <div class="bd-row"><span class="l">Biaya Bahan</span><span class="v">${fmtRp(c.ingCost*mult)}</span></div>
+      <div class="bd-row"><span class="l">Biaya Tenaga Kerja <span class="d">(${c.prepMinutes||0} mnt/batch × ${fmtRp(settings.hourlyRate||0)}/jam)</span></span><span class="v">${fmtRp(c.laborCost*mult)}</span></div>
+      ${c.autoOverhead>0?`<div class="bd-row"><span class="l">Overhead Otomatis <span class="d">(${settings.overheadPct}% dari bahan)</span></span><span class="v">${fmtRp(c.autoOverhead*mult)}</span></div>`:''}
+      <div class="bd-row"><span class="l">Biaya Lain-lain</span><span class="v">${fmtRp(c.manualOverhead*mult)}</span></div>
+      <div class="bd-row total"><span class="l">TOTAL</span><span class="v">${fmtRp(totalCost)}</span></div>
+    </div>`;
+
+  const shopRows=(rec.items||[]).map(it=>{
+    const ing=ingredients.find(i=>i.id===it.ingredientId);
+    if(!ing) return '';
+    const qty=it.qty*mult;
+    return `<tr><td><span class="t-name">${esc(ing.name)}</span></td><td class="num">${fmtNum(qty)} ${esc(ing.unit)}</td><td class="num">${fmtRp(qty*effectivePrice(ing))}</td></tr>`;
+  }).join('');
+  const shop=`
+    <div class="section-title">Daftar Belanja</div>
+    <div class="tbl-wrap"><table><thead><tr><th>Bahan</th><th class="num">Jumlah</th><th class="num">Biaya</th></tr></thead><tbody>${shopRows}</tbody></table></div>`;
+
+  box.innerHTML=stats+comp+shop;
+}
+
+/* ================= PLANS ================= */
+function activePlan(){ return plans.find(p=>p.id===activePlanId)||null; }
+async function createPlan(){
+  const name=prompt('Nama rencana produksi:','Rencana '+(plans.length+1));
+  if(name===null) return;
+  const p={id:uid('plan'),name:name.trim()||('Rencana '+(plans.length+1)),items:[]};
+  plans.push(p);
+  activePlanId=p.id;
+  await savePlans();
+  toast('Rencana dibuat');
+  renderPlans();
+}
+async function renamePlan(id){
+  const p=plans.find(x=>x.id===id); if(!p) return;
+  const name=prompt('Ubah nama rencana:',p.name);
+  if(name===null) return;
+  p.name=name.trim()||p.name;
+  await savePlans(); renderPlans();
+}
+async function deletePlan(id){
+  if(!confirm('Hapus rencana ini?')) return;
+  plans=plans.filter(p=>p.id!==id);
+  if(activePlanId===id) activePlanId=plans.length?plans[0].id:null;
+  await savePlans();
+  toast('Rencana dihapus');
+  renderPlans();
+}
+function selectPlan(id){ activePlanId=id; renderPlans(); }
+async function addPlanItem(){
+  const p=activePlan(); if(!p) return;
+  if(!recipes.length){ toast('Buat resep dulu'); return; }
+  p.items.push({recipeId:recipes[0].id,targetQty:recipes[0].yieldQty});
+  await savePlans(); renderPlans();
+}
+async function removePlanItem(idx){
+  const p=activePlan(); if(!p) return;
+  p.items.splice(idx,1);
+  await savePlans(); renderPlans();
+}
+async function updatePlanItem(idx,f,v){
+  const p=activePlan(); if(!p) return;
+  p.items[idx][f]=f==='targetQty'?(parseFloat(v)||0):v;
+  await savePlans(); renderPlans();
+}
+function aggregatePlan(p){
+  const agg={}, breakdown=[];
+  let totalCost=0,totalIng=0,totalLabor=0,totalOv=0;
+  (p.items||[]).forEach(it=>{
+    const rec=recipes.find(r=>r.id===it.recipeId);
+    if(!rec) return;
+    const mult=rec.yieldQty?it.targetQty/rec.yieldQty:0;
+    const c=recipeCost(rec);
+    totalCost+=c.total*mult; totalIng+=c.ingCost*mult; totalLabor+=c.laborCost*mult; totalOv+=c.overheadCost*mult;
+    breakdown.push({name:rec.name,qty:it.targetQty,unit:rec.yieldUnit||'',cost:c.total*mult,ing:c.ingCost*mult,lab:c.laborCost*mult,ov:c.overheadCost*mult});
+    (rec.items||[]).forEach(ri=>{
+      const ing=ingredients.find(i=>i.id===ri.ingredientId);
+      if(!ing) return;
+      if(!agg[ing.id]) agg[ing.id]={ing,qty:0};
+      agg[ing.id].qty+=ri.qty*mult;
+    });
+  });
+  return {agg,breakdown,totalCost,totalIng,totalLabor,totalOv};
+}
+function renderPlans(){
+  const listEl=document.getElementById('plan-list');
+  const edEl=document.getElementById('plan-editor');
+  if(!plans.length){
+    listEl.innerHTML='<div class="empty" style="padding:26px 16px;"><p style="margin:0;color:var(--g500);font-size:12.5px;">Belum ada rencana.</p></div>';
+    edEl.innerHTML='<div class="card">'+emptyState('chart','Mulai rencana produksi','Buat rencana, tambahkan beberapa resep, dan dapatkan marketlist gabungan.','<button class="btn btn-red btn-sm" onclick="createPlan()">+ Rencana Baru</button>')+'</div>';
+    return;
+  }
+  if(!activePlanId||!plans.some(p=>p.id===activePlanId)) activePlanId=plans[0].id;
+  listEl.innerHTML=plans.map(p=>{
+    const a=aggregatePlan(p);
+    return `<div class="plan-item ${p.id===activePlanId?'active':''}" onclick="selectPlan('${p.id}')">
+      <div><div class="pn">${esc(p.name)}</div><div class="pm">${(p.items||[]).length} resep • ${fmtRp(a.totalCost)}</div></div>
+    </div>`;
+  }).join('');
+
+  const p=activePlan();
+  const a=aggregatePlan(p);
+  const itemRows=(p.items||[]).map((it,idx)=>{
+    const opts=recipes.map(r=>`<option value="${r.id}" ${r.id===it.recipeId?'selected':''}>${esc(r.name)}</option>`).join('');
+    const rec=recipes.find(r=>r.id===it.recipeId);
+    return `<div class="item-row">
+      <select onchange="updatePlanItem(${idx},'recipeId',this.value)">${opts}</select>
+      <input type="number" value="${it.targetQty}" placeholder="target ${rec?esc(rec.yieldUnit||'unit'):''}" oninput="updatePlanItem(${idx},'targetQty',this.value)">
+      <button class="rm" onclick="removePlanItem(${idx})">✕</button>
+    </div>`;
+  }).join('');
+
+  const marketRows=Object.values(a.agg).map(x=>`<tr><td><span class="t-name">${esc(x.ing.name)}</span></td><td class="num">${fmtNum(x.qty)} ${esc(x.ing.unit)}</td><td class="num">${fmtRp(x.qty*effectivePrice(x.ing))}</td></tr>`).join('');
+  const bdRows=a.breakdown.map(b=>`<div class="bd-row"><span class="l">${esc(b.name)} <span class="d">${fmtNum(b.qty)} ${esc(b.unit)} • bahan ${fmtRp(b.ing)} • TK ${fmtRp(b.lab)} • lain ${fmtRp(b.ov)}</span></span><span class="v">${fmtRp(b.cost)}</span></div>`).join('');
+
+  edEl.innerHTML=`
+    <div class="card" style="padding:18px;margin-bottom:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+        <b style="font-family:var(--font-display);font-size:15px;">${esc(p.name)}</b>
+        <div style="display:flex;gap:6px;">
+          <button class="act" onclick="renamePlan('${p.id}')">Ubah Nama</button>
+          <button class="act danger" onclick="deletePlan('${p.id}')">Hapus</button>
+        </div>
+      </div>
+      ${itemRows||'<p class="hint" style="margin:0 0 8px;">Belum ada resep di rencana ini.</p>'}
+      <button class="btn btn-ghost btn-sm" onclick="addPlanItem()">+ Tambah Resep</button>
+    </div>
+    ${(p.items||[]).length?`
+    <div class="stat-grid">
+      <div class="stat"><div class="lbl">Biaya Bahan</div><div class="val">${fmtRp(a.totalIng)}</div></div>
+      <div class="stat"><div class="lbl">Biaya Tenaga Kerja</div><div class="val">${fmtRp(a.totalLabor)}</div></div>
+      <div class="stat"><div class="lbl">Biaya Lain-lain</div><div class="val">${fmtRp(a.totalOv)}</div></div>
+      <div class="stat"><div class="lbl">Total Modal</div><div class="val" style="color:var(--red-dark);">${fmtRp(a.totalCost)}</div></div>
+    </div>
+    <div class="section-title">Rincian per Resep</div>
+    <div class="bd" style="background:var(--surface);">${bdRows}</div>
+    <div class="section-title">Marketlist Gabungan</div>
+    <div class="tbl-wrap"><table><thead><tr><th>Bahan</th><th class="num">Total Jumlah</th><th class="num">Biaya</th></tr></thead><tbody>${marketRows}</tbody></table></div>
+    `:''}
+  `;
+}
+
+/* ================= EXPORT / CSV ================= */
+function downloadCSV(filename,rows){
+  const csv=rows.map(r=>r.map(c=>{
+    c=(c===null||c===undefined)?'':String(c);
+    if(c.includes(',')||c.includes('"')||c.includes('\n')) c='"'+c.replace(/"/g,'""')+'"';
+    return c;
+  }).join(',')).join('\r\n');
+  const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const aEl=document.createElement('a');
+  aEl.href=url; aEl.download=filename;
+  document.body.appendChild(aEl); aEl.click(); document.body.removeChild(aEl);
+  URL.revokeObjectURL(url);
+  toast('CSV diunduh');
+}
+function exportIngredientsCSV(){
+  const rows=[['Nama','Kategori','Satuan','Harga/Satuan','Susut %','Harga Efektif']];
+  ingredients.forEach(i=>rows.push([i.name,i.category||'',i.unit,i.price,i.waste||0,Math.round(effectivePrice(i))]));
+  downloadCSV('bahan-baku.csv',rows);
+}
+function exportRecipesCSV(){
+  const rows=[['Nama','Kategori','Hasil','Satuan','Waktu (mnt)','Biaya Bahan','Biaya TK','Biaya Lain','HPP Total','HPP/Unit','Harga Jual','Margin %']];
+  recipes.forEach(r=>{
+    const c=recipeCost(r);
+    rows.push([r.name,r.category||'',r.yieldQty,r.yieldUnit||'',r.prepMinutes||0,Math.round(c.ingCost),Math.round(c.laborCost),Math.round(c.overheadCost),Math.round(c.total),Math.round(c.perUnit),r.sellPrice||'',c.margin!==null?c.margin.toFixed(1):'']);
+  });
+  downloadCSV('rekap-resep.csv',rows);
+}
+function exportBatchCSV(){
+  const rec=recipes.find(r=>r.id===document.getElementById('batch-recipe').value);
+  if(!rec){ toast('Pilih resep dulu'); return; }
+  const mult=parseFloat(document.getElementById('batch-mult').value)||1;
+  const rows=[['Bahan','Jumlah','Satuan','Biaya']];
+  (rec.items||[]).forEach(it=>{
+    const ing=ingredients.find(i=>i.id===it.ingredientId);
+    if(!ing) return;
+    const qty=it.qty*mult;
+    rows.push([ing.name,Math.round(qty*100)/100,ing.unit,Math.round(qty*effectivePrice(ing))]);
+  });
+  downloadCSV('belanja-'+rec.name.replace(/\s+/g,'-')+'.csv',rows);
+}
+function exportPlanCSV(){
+  const p=activePlan();
+  if(!p||!(p.items||[]).length){ toast('Rencana masih kosong'); return; }
+  const a=aggregatePlan(p);
+  const rows=[['Bahan','Jumlah','Satuan','Biaya']];
+  Object.values(a.agg).forEach(x=>rows.push([x.ing.name,Math.round(x.qty*100)/100,x.ing.unit,Math.round(x.qty*effectivePrice(x.ing))]));
+  downloadCSV('marketlist-'+p.name.replace(/\s+/g,'-')+'.csv',rows);
+}
+
+/* ================= INIT ================= */
+loadData();
+</script>
+</body>
+</html>
