@@ -189,6 +189,11 @@ input[type="text"],input[type="number"],input[type="search"],input[type="email"]
 .hint{font-size:11.5px;color:var(--g500);margin-top:5px;line-height:1.5;}
 .check-row{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500;color:var(--text);}
 .check-row input{width:16px;height:16px;}
+.pw-wrap{position:relative;}
+.pw-wrap input{padding-right:42px;}
+.pw-toggle{position:absolute;right:4px;top:50%;transform:translateY(-50%);background:none;border:none;padding:7px;color:var(--g500);display:flex;align-items:center;justify-content:center;border-radius:7px;}
+.pw-toggle:hover{color:var(--text);background:var(--g100);}
+.pw-toggle svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
 .divider{height:1px;background:var(--border);margin:18px 0;}
 
 /* ================= SETTINGS ================= */
@@ -463,13 +468,9 @@ input[type="text"],input[type="number"],input[type="search"],input[type="email"]
         </div>
 
         <div class="card">
-          <div class="section-title" style="margin-top:0;">Ubah PIN Akses</div>
-          <p class="hint" style="margin-top:0;">PIN ini dipakai semua device untuk membuka data yang sama. Mengubahnya di sini berlaku untuk semua orang yang login berikutnya.</p>
-          <div class="form-grid">
-            <div class="field"><label>PIN Lama</label><input id="cp-old" type="password" inputmode="numeric" autocomplete="off"></div>
-            <div class="field"><label>PIN Baru</label><input id="cp-new" type="password" inputmode="numeric" autocomplete="off"></div>
-          </div>
-          <button class="btn btn-ghost btn-sm" onclick="changePinFlow()">Ganti PIN</button>
+          <div class="section-title" style="margin-top:0;">Akun</div>
+          <p class="hint" style="margin-top:0;">Masuk sebagai <b id="acc-email">-</b></p>
+          <button class="btn btn-ghost btn-sm" onclick="doSignOut()">Keluar</button>
         </div>
       </div>
     </section>
@@ -559,17 +560,27 @@ input[type="text"],input[type="number"],input[type="search"],input[type="email"]
   </div>
 </div>
 
-<!-- PIN gate -->
-<div class="overlay show" id="ov-pin">
-  <div class="modal" style="max-width:360px;">
+<!-- Login gate -->
+<div class="overlay show" id="ov-login">
+  <div class="modal" style="max-width:380px;">
     <div class="modal-head"><h3>Masuk</h3></div>
     <div class="modal-body">
-      <p class="hint" style="margin-top:0;">Masukkan PIN akses untuk membuka data THE BIG GUYS.</p>
-      <div class="field"><label>PIN</label><input id="pin-input" type="password" inputmode="numeric" autocomplete="off" placeholder="••••••"></div>
-      <p class="hint" id="pin-error" style="display:none;color:var(--red-dark);"></p>
+      <p class="hint" style="margin-top:0;">Masuk untuk mengakses data THE BIG GUYS.</p>
+      <div class="field"><label>Email</label><input id="login-email" type="email" autocomplete="username" placeholder="nama@email.com"></div>
+      <div class="field">
+        <label>Password</label>
+        <div class="pw-wrap">
+          <input id="login-password" type="password" autocomplete="current-password">
+          <button type="button" class="pw-toggle" onclick="togglePasswordVisibility()" aria-label="Tampilkan password">
+            <svg id="pw-eye-icon" viewBox="0 0 24 24"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="field check-row"><input id="login-remember" type="checkbox" checked><label style="margin:0;">Ingat saya di device ini</label></div>
+      <p class="hint" id="login-error" style="display:none;color:var(--red-dark);"></p>
     </div>
     <div class="modal-foot">
-      <button class="btn btn-red" id="pin-submit-btn" style="width:100%;" onclick="submitPin()">Masuk</button>
+      <button class="btn btn-red" id="login-submit-btn" style="width:100%;" onclick="submitLogin()">Masuk</button>
     </div>
   </div>
 </div>
@@ -595,54 +606,38 @@ input[type="text"],input[type="number"],input[type="search"],input[type="email"]
   <svg viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></svg>
   <span id="toast-msg"></span>
 </div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script>
 /* ================= STATE & STORAGE ================= */
 const K_ING='tbg_ingredients', K_REC='tbg_recipes', K_PLANS='tbg_plans', K_PLAN_LEGACY='tbg_plan', K_SET='tbg_settings';
 const DEFAULT_SETTINGS={hourlyRate:0,overheadPct:0,targetMargin:0,wasteDefault:0,rounding:500,bizName:'THE BIG GUYS',currency:'Rp',dark:false,ingCats:[],recCats:[],customUnits:[]};
 let ingredients=[], recipes=[], plans=[], activePlanId=null, settings={...DEFAULT_SETTINGS};
 
-/* ---- Supabase-backed storage, gated by a shared PIN ---- */
+/* ---- Supabase-backed storage, gated by real Supabase Auth (email + password) ---- */
 const SUPABASE_URL='https://jqzuoqgzqxzabvcrylmm.supabase.co';
 const SUPABASE_KEY='sb_publishable_1Or2ssuRDBPP5pzZ7ZSOKw_UBUl1b9t';
-const PIN_STORAGE_KEY='tbg_pin';
 const ALL_DATA_KEYS=[K_ING,K_REC,K_PLANS,K_SET];
-let currentPin=null;
-let cloudCache=null; // Map<string,string> once PIN is verified this session; null = local-only fallback
+let supabaseClient=null;
+let cloudCache=null; // Map<string,string> once a session + initial fetch succeed; null = local-only fallback
 
-async function supaRpc(fnName, body){
-  let res;
-  try{
-    res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fnName}`, {
-      method:'POST',
-      headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY},
-      body: JSON.stringify(body)
-    });
-  }catch(networkErr){
-    const e=new Error('network'); e.kind='network'; throw e;
-  }
-  if(!res.ok){
-    const errBody = await res.json().catch(()=>({}));
-    const msg = ((errBody&&(errBody.message||errBody.hint))||'')+'';
-    const e = new Error(msg||'server_error');
-    e.kind = msg.includes('invalid pin') ? 'pin' : 'server';
-    throw e;
-  }
-  if(res.status===204) return null; // void-returning functions (set_app_data, change_pin) reply with no body
-  const text = await res.text();
-  return text ? JSON.parse(text) : null;
+function makeSupabaseClient(storage){
+  return window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth: { storage, persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
+  });
 }
 
-async function authenticatePin(pin){
-  const rows = await supaRpc('get_app_data', {p_pin: pin});
-  cloudCache = new Map(rows.map(r=>[r.key, r.value]));
-  currentPin = pin;
+async function loadCloudCache(){
+  const { data, error } = await supabaseClient.from('app_data').select('key,value');
+  if(error){ const e=new Error(error.message); e.kind='server'; throw e; }
+  cloudCache = new Map((data||[]).map(r=>[r.key, r.value]));
   // First device to connect after go-live: migrate whatever's already on this device up to the server.
-  if(!rows.length){
+  if(!data || !data.length){
     for(const key of ALL_DATA_KEYS){
       let local=null;
       try{ local = localStorage.getItem(key); }catch(e){}
       if(local!==null){
-        try{ await supaRpc('set_app_data', {p_pin:pin, p_key:key, p_value:local}); cloudCache.set(key, local); }catch(e){}
+        const { error: upErr } = await supabaseClient.from('app_data').upsert({key, value:local}, {onConflict:'key'});
+        if(!upErr) cloudCache.set(key, local);
       }
     }
   }
@@ -654,82 +649,73 @@ async function sGet(key){
 }
 async function sSet(key,value){
   try{ localStorage.setItem(key,value); }catch(e){}
-  if(cloudCache){
-    cloudCache.set(key,value);
-    try{ await supaRpc('set_app_data', {p_pin: currentPin, p_key:key, p_value:value}); }
-    catch(e){ toast('Gagal sinkron ke server, tersimpan lokal'); }
+  if(supabaseClient){
+    const { error } = await supabaseClient.from('app_data').upsert({key, value}, {onConflict:'key'});
+    if(error){ toast('Gagal sinkron ke server, tersimpan lokal'); }
+    else{ if(!cloudCache) cloudCache=new Map(); cloudCache.set(key,value); }
   }
   return {key,value};
 }
 
-function showPinGate(errorMsg){
-  const el = document.getElementById('pin-error');
-  if(errorMsg){ el.textContent=errorMsg; el.style.display='block'; } else { el.style.display='none'; }
-  document.getElementById('pin-input').value='';
-  openModal('ov-pin');
-  setTimeout(()=>document.getElementById('pin-input').focus(), 50);
+function togglePasswordVisibility(){
+  const input = document.getElementById('login-password');
+  const showing = input.type==='text';
+  input.type = showing ? 'password' : 'text';
+  document.getElementById('pw-eye-icon').innerHTML = showing
+    ? '<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/>'
+    : '<path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a21.6 21.6 0 0 1 5.06-5.94M9.9 4.24A10.4 10.4 0 0 1 12 4c7 0 11 7 11 7a21.6 21.6 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><path d="M1 1l22 22"/>';
 }
-async function submitPin(){
-  const pin = document.getElementById('pin-input').value.trim();
-  if(!pin) return;
-  const btn = document.getElementById('pin-submit-btn');
+
+function showLoginGate(errorMsg){
+  const el = document.getElementById('login-error');
+  if(errorMsg){ el.textContent=errorMsg; el.style.display='block'; } else { el.style.display='none'; }
+  openModal('ov-login');
+}
+async function submitLogin(){
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const remember = document.getElementById('login-remember').checked;
+  if(!email || !password){ showLoginGate('Isi email & password'); return; }
+  const btn = document.getElementById('login-submit-btn');
   btn.disabled = true; btn.textContent='Memeriksa...';
   try{
-    await authenticatePin(pin);
-    try{ localStorage.setItem(PIN_STORAGE_KEY, pin); }catch(e){}
-    closeModal('ov-pin');
+    const client = makeSupabaseClient(remember ? localStorage : sessionStorage);
+    const { error } = await client.auth.signInWithPassword({ email, password });
+    if(error){ showLoginGate('Email atau password salah.'); return; }
+    supabaseClient = client;
+    try{ await loadCloudCache(); }
+    catch(e){ cloudCache=null; toast('Tidak bisa konek ke server, pakai mode lokal'); }
+    closeModal('ov-login');
+    document.getElementById('acc-email').textContent = email;
     await loadData();
   }catch(e){
-    if(e.kind==='pin'){ showPinGate('PIN salah, coba lagi.'); }
-    else{
-      cloudCache=null; currentPin=null;
-      closeModal('ov-pin');
-      toast('Tidak bisa konek ke server, pakai mode lokal');
-      await loadData();
-    }
+    showLoginGate('Tidak bisa konek ke server. Coba lagi.');
   }finally{
     btn.disabled=false; btn.textContent='Masuk';
   }
 }
-async function changePinFlow(){
-  const oldPin = document.getElementById('cp-old').value.trim();
-  const newPin = document.getElementById('cp-new').value.trim();
-  if(!oldPin || !newPin){ toast('Isi PIN lama & PIN baru'); return; }
-  if(!cloudCache){ toast('Tidak terhubung ke server, tidak bisa ganti PIN'); return; }
-  try{
-    await supaRpc('change_pin', {p_old_pin:oldPin, p_new_pin:newPin});
-    currentPin = newPin;
-    try{ localStorage.setItem(PIN_STORAGE_KEY, newPin); }catch(e){}
-    document.getElementById('cp-old').value='';
-    document.getElementById('cp-new').value='';
-    toast('PIN berhasil diubah');
-  }catch(e){
-    toast(e.kind==='pin' ? 'PIN lama salah' : 'Gagal mengubah PIN');
-  }
+async function doSignOut(){
+  if(supabaseClient){ try{ await supabaseClient.auth.signOut(); }catch(e){} }
+  supabaseClient=null; cloudCache=null;
+  document.getElementById('login-email').value='';
+  document.getElementById('login-password').value='';
+  showLoginGate();
 }
 async function initApp(){
-  let savedPin=null;
-  try{ savedPin = localStorage.getItem(PIN_STORAGE_KEY); }catch(e){}
-  if(savedPin){
-    try{
-      await authenticatePin(savedPin);
-      closeModal('ov-pin');
-      await loadData();
-      return;
-    }catch(e){
-      if(e.kind==='pin'){
-        try{ localStorage.removeItem(PIN_STORAGE_KEY); }catch(err){}
-        showPinGate('PIN tersimpan sudah tidak berlaku, masukkan PIN baru.');
-        return;
-      }
-      cloudCache=null; currentPin=null;
-      closeModal('ov-pin');
-      toast('Tidak bisa konek ke server, pakai mode lokal');
+  for(const storage of [localStorage, sessionStorage]){
+    const client = makeSupabaseClient(storage);
+    const { data: { session } } = await client.auth.getSession();
+    if(session){
+      supabaseClient = client;
+      try{ await loadCloudCache(); }
+      catch(e){ cloudCache=null; toast('Tidak bisa konek ke server, pakai mode lokal'); }
+      closeModal('ov-login');
+      document.getElementById('acc-email').textContent = session.user.email;
       await loadData();
       return;
     }
   }
-  showPinGate();
+  showLoginGate();
 }
 
 function uid(p){ return p+'_'+Date.now()+'_'+Math.floor(Math.random()*100000); }
@@ -873,9 +859,9 @@ document.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',(
 function closeModal(id){ document.getElementById(id).classList.remove('show'); }
 function openModal(id){ document.getElementById(id).classList.add('show'); }
 document.querySelectorAll('.overlay').forEach(ov=>{
-  ov.addEventListener('click',e=>{ if(e.target===ov && ov.id!=='ov-pin') ov.classList.remove('show'); });
+  ov.addEventListener('click',e=>{ if(e.target===ov && ov.id!=='ov-login') ov.classList.remove('show'); });
 });
-document.getElementById('pin-input').addEventListener('keydown', e=>{ if(e.key==='Enter') submitPin(); });
+['login-email','login-password'].forEach(id=>document.getElementById(id).addEventListener('keydown', e=>{ if(e.key==='Enter') submitLogin(); }));
 
 /* ================= COST MODEL ================= */
 function effectivePrice(ing){

@@ -13,14 +13,17 @@ A single-page HPP (harga pokok produksi) and recipe-costing tool for THE BIG GUY
 
 ## Data storage & access
 
-Data (ingredients, recipes, plans, settings) is stored server-side in a Supabase Postgres database, shared across every device. Access is gated by a single shared PIN (set in Settings → *Ubah PIN Akses*):
+Data (ingredients, recipes, plans, settings) is stored server-side in a Supabase Postgres database, shared across every device. Access is gated by real Supabase Auth (email + password) — there is one account for the business, managed in the Supabase dashboard under **Authentication → Users**.
 
-- The frontend never talks to the `app_data`/`app_auth` tables directly — `anon`/`authenticated` have zero grants on them. All reads/writes go through three `SECURITY DEFINER` RPC functions (`get_app_data`, `set_app_data`, `change_pin`) that verify the PIN (hashed with `pgcrypto`'s `crypt()`) before touching any row.
-- The entered PIN is cached in `localStorage` on that device so it isn't asked for on every visit. Deleting that value (or clearing site data) will re-prompt for the PIN.
-- If the device can't reach Supabase (offline, outage), the app falls back to a local-only `localStorage` cache instead of blocking — it re-syncs on the next successful save once connectivity returns.
-- The very first device to authenticate against a freshly created (empty) backend migrates whatever it already has in `localStorage` up to Supabase automatically.
+- `app_data` has Row Level Security enabled; only the `authenticated` Postgres role (i.e. a valid, signed-in Supabase session) can `select`/`insert`/`update` it — `anon` has zero grants.
+- The frontend uses the official `@supabase/supabase-js` SDK (loaded from jsDelivr) for `signInWithPassword`, session persistence, and automatic token refresh.
+- **Ingat saya di device ini** (remember me) controls where the session is persisted: checked → `localStorage` (survives closing the browser); unchecked → `sessionStorage` (cleared when the tab/browser closes). On load, the app checks both to restore a session without re-prompting.
+- Show/hide toggle on the password field (a plain `type="password"`/`type="text"` swap — no library needed for that part).
+- If the device can't reach Supabase (offline, outage) after already being signed in, the app falls back to a local-only `localStorage` cache instead of blocking — it re-syncs on the next successful save once connectivity returns.
+- The first device to sign in against a freshly created (empty) backend migrates whatever it already has in `localStorage` up to Supabase automatically.
+- Settings → **Akun** shows who's signed in and has a **Keluar** (sign out) button.
 
-The schema migration lives in Supabase itself (project "The Big Guys"); rerun/adjust it via the Supabase SQL editor or MCP `apply_migration` if you need to change it.
+To change the password or add another account, use the Supabase dashboard (Authentication → Users) — there's no self-serve "change password" UI in the app itself. The schema migration lives in Supabase itself (project "The Big Guys"); rerun/adjust it via the Supabase SQL editor or MCP `apply_migration` if you need to change it.
 
 ## Local development
 
