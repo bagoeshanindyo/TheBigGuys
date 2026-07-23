@@ -269,12 +269,14 @@ input[type="text"],input[type="number"],input[type="search"],input[type="email"]
   .sidebar{display:none;}
   .main{padding:18px 14px 90px;}
   .bottom-nav{
-    display:flex;position:fixed;bottom:0;left:0;right:0;background:var(--surface);
+    display:flex;flex-direction:row;position:fixed;bottom:0;left:0;right:0;background:var(--surface);
     border-top:1px solid var(--border);z-index:90;padding:6px 4px calc(env(safe-area-inset-bottom) + 6px);
-    justify-content:space-between;
+    justify-content:space-between;overflow:visible;
   }
-  .bottom-nav .nav-btn{flex:1;flex-direction:column;gap:2px;font-size:10px;padding:7px 2px;border-radius:9px;text-align:center;}
+  .bottom-nav .nav-btn{flex:1;flex-direction:column;gap:2px;font-size:10px;padding:7px 2px;border-radius:9px;text-align:center;justify-content:center;white-space:nowrap;}
   .stat-grid{grid-template-columns:1fr 1fr;}
+  .toast{bottom:calc(56px + env(safe-area-inset-bottom));}
+  .form-grid,.form-grid.c3{grid-template-columns:1fr;}
 }
 
 /* ================= PRINT ================= */
@@ -511,7 +513,7 @@ input[type="text"],input[type="number"],input[type="search"],input[type="email"]
         <div class="field"><label>Kategori</label><input id="rec-category" type="text" list="dl-reccats" placeholder="opsional"></div>
         <div class="field"><label>Hasil (Yield)</label><input id="rec-yield" type="number" min="0" step="0.1" value="1"></div>
         <div class="field"><label>Satuan Hasil</label><input id="rec-yield-unit" type="text" placeholder="porsi / pcs"></div>
-        <div class="field"><label>Waktu Persiapan (menit) <span class="hint" style="display:inline;">— tarif <b id="rec-rate-hint">belum diatur</b></span></label><input id="rec-preptime" type="number" min="0" placeholder="0"></div>
+        <div class="field"><label>Waktu Persiapan (menit)</label><input id="rec-preptime" type="number" min="0" placeholder="0"><p class="hint">Tarif: <b id="rec-rate-hint">belum diatur</b></p></div>
         <div class="field"><label>Biaya Lain-lain (Rp)</label><input id="rec-overhead" type="number" min="0" placeholder="0"></div>
       </div>
 
