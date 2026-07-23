@@ -270,9 +270,10 @@ input[type="text"],input[type="number"],input[type="search"],input[type="email"]
 .toast svg{width:16px;height:16px;fill:none;stroke:var(--green);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;}
 
 /* ================= LOGIN PAGE ================= */
-/* Always dark, regardless of the app's own light/dark theme setting. */
+/* Uses the same light "broken white + red" palette as the dashboard (--bg/--surface are
+   the default :root values here since data-theme is never set to "dark" before login). */
 .login-page{
-  position:fixed;inset:0;z-index:500;background:#050505;
+  position:fixed;inset:0;z-index:500;background:var(--bg);
   display:none;align-items:center;justify-content:center;padding:24px;
   overflow-y:auto;
 }
@@ -280,37 +281,37 @@ input[type="text"],input[type="number"],input[type="search"],input[type="email"]
 .login-box{width:100%;max-width:420px;display:flex;flex-direction:column;align-items:center;}
 .login-logo{width:120px;height:auto;margin-bottom:14px;}
 .login-sub{
-  color:#8a8a8a;font-size:11.5px;letter-spacing:3px;font-weight:600;text-transform:uppercase;
+  color:var(--g500);font-size:11.5px;letter-spacing:3px;font-weight:600;text-transform:uppercase;
   margin:0 0 34px;text-align:center;
 }
 .login-field{width:100%;position:relative;margin-bottom:14px;}
 .login-field input{
-  width:100%;background:#161616;border:1px solid #272727;border-radius:14px;
-  padding:16px 18px;color:#f2f2f2;font-size:14.5px;
+  width:100%;background:var(--surface);border:1px solid var(--border);border-radius:14px;
+  padding:16px 18px;color:var(--text);font-size:14.5px;box-shadow:var(--shadow);
 }
-.login-field input::placeholder{color:#6b6b6b;}
+.login-field input::placeholder{color:var(--g400);}
 .login-field input:focus{outline:none;border-color:var(--red);}
 .pw-wrap-dark input{padding-right:46px;}
 .pw-toggle-dark{
   position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;
-  padding:8px;color:#8a8a8a;display:flex;align-items:center;justify-content:center;border-radius:8px;
+  padding:8px;color:var(--g500);display:flex;align-items:center;justify-content:center;border-radius:8px;
 }
-.pw-toggle-dark:hover{color:#fff;}
+.pw-toggle-dark:hover{color:var(--text);}
 .pw-toggle-dark svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
 .login-remember{
-  width:100%;display:flex;align-items:center;gap:9px;color:#b0b0b0;font-size:13px;
+  width:100%;display:flex;align-items:center;gap:9px;color:var(--g600);font-size:13px;
   margin-bottom:20px;cursor:pointer;user-select:none;
 }
 .login-remember input{width:16px;height:16px;accent-color:var(--red);}
-.login-error{color:#ff7a7a;font-size:12.5px;margin:-6px 0 16px;text-align:center;}
+.login-error{color:var(--red-dark);font-size:12.5px;margin:-6px 0 16px;text-align:center;}
 .login-submit{
-  width:100%;background:#fff;color:#111;border:none;border-radius:14px;padding:16px;
+  width:100%;background:var(--red);color:#fff;border:none;border-radius:14px;padding:16px;
   font-family:var(--font-display);font-size:14px;font-weight:800;letter-spacing:.6px;
   text-transform:uppercase;cursor:pointer;transition:filter .12s;
 }
-.login-submit:hover{filter:brightness(.94);}
+.login-submit:hover{filter:brightness(1.08);}
 .login-submit:disabled{opacity:.6;cursor:default;}
-.login-footer{margin-top:30px;color:#4d4d4d;font-size:11px;text-align:center;}
+.login-footer{margin-top:30px;color:var(--g400);font-size:11px;text-align:center;}
 
 /* ================= MOBILE BOTTOM NAV ================= */
 .bottom-nav{display:none;}
