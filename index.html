@@ -461,6 +461,16 @@ input[type="text"],input[type="number"],input[type="search"],input[type="email"]
           <div class="field"><label>Kategori Resep (pisahkan dengan koma)</label><input id="set-reccats" type="text" placeholder="Burger, Minuman, ..."></div>
           <p class="hint">Kategori akan muncul sebagai saran otomatis saat menambah bahan atau resep baru.</p>
         </div>
+
+        <div class="card">
+          <div class="section-title" style="margin-top:0;">Ubah PIN Akses</div>
+          <p class="hint" style="margin-top:0;">PIN ini dipakai semua device untuk membuka data yang sama. Mengubahnya di sini berlaku untuk semua orang yang login berikutnya.</p>
+          <div class="form-grid">
+            <div class="field"><label>PIN Lama</label><input id="cp-old" type="password" inputmode="numeric" autocomplete="off"></div>
+            <div class="field"><label>PIN Baru</label><input id="cp-new" type="password" inputmode="numeric" autocomplete="off"></div>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="changePinFlow()">Ganti PIN</button>
+        </div>
       </div>
     </section>
   </main>
@@ -549,6 +559,21 @@ input[type="text"],input[type="number"],input[type="search"],input[type="email"]
   </div>
 </div>
 
+<!-- PIN gate -->
+<div class="overlay show" id="ov-pin">
+  <div class="modal" style="max-width:360px;">
+    <div class="modal-head"><h3>Masuk</h3></div>
+    <div class="modal-body">
+      <p class="hint" style="margin-top:0;">Masukkan PIN akses untuk membuka data THE BIG GUYS.</p>
+      <div class="field"><label>PIN</label><input id="pin-input" type="password" inputmode="numeric" autocomplete="off" placeholder="••••••"></div>
+      <p class="hint" id="pin-error" style="display:none;color:var(--red-dark);"></p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-red" id="pin-submit-btn" style="width:100%;" onclick="submitPin()">Masuk</button>
+    </div>
+  </div>
+</div>
+
 <!-- History modal -->
 <div class="overlay" id="ov-hist">
   <div class="modal" style="max-width:480px;">
@@ -576,14 +601,135 @@ const K_ING='tbg_ingredients', K_REC='tbg_recipes', K_PLANS='tbg_plans', K_PLAN_
 const DEFAULT_SETTINGS={hourlyRate:0,overheadPct:0,targetMargin:0,wasteDefault:0,rounding:500,bizName:'THE BIG GUYS',currency:'Rp',dark:false,ingCats:[],recCats:[],customUnits:[]};
 let ingredients=[], recipes=[], plans=[], activePlanId=null, settings={...DEFAULT_SETTINGS};
 
-const HAS_CLOUD = (typeof window!=='undefined' && !!window.storage);
+/* ---- Supabase-backed storage, gated by a shared PIN ---- */
+const SUPABASE_URL='https://jqzuoqgzqxzabvcrylmm.supabase.co';
+const SUPABASE_KEY='sb_publishable_1Or2ssuRDBPP5pzZ7ZSOKw_UBUl1b9t';
+const PIN_STORAGE_KEY='tbg_pin';
+const ALL_DATA_KEYS=[K_ING,K_REC,K_PLANS,K_SET];
+let currentPin=null;
+let cloudCache=null; // Map<string,string> once PIN is verified this session; null = local-only fallback
+
+async function supaRpc(fnName, body){
+  let res;
+  try{
+    res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fnName}`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY},
+      body: JSON.stringify(body)
+    });
+  }catch(networkErr){
+    const e=new Error('network'); e.kind='network'; throw e;
+  }
+  if(!res.ok){
+    const errBody = await res.json().catch(()=>({}));
+    const msg = ((errBody&&(errBody.message||errBody.hint))||'')+'';
+    const e = new Error(msg||'server_error');
+    e.kind = msg.includes('invalid pin') ? 'pin' : 'server';
+    throw e;
+  }
+  if(res.status===204) return null; // void-returning functions (set_app_data, change_pin) reply with no body
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
+async function authenticatePin(pin){
+  const rows = await supaRpc('get_app_data', {p_pin: pin});
+  cloudCache = new Map(rows.map(r=>[r.key, r.value]));
+  currentPin = pin;
+  // First device to connect after go-live: migrate whatever's already on this device up to the server.
+  if(!rows.length){
+    for(const key of ALL_DATA_KEYS){
+      let local=null;
+      try{ local = localStorage.getItem(key); }catch(e){}
+      if(local!==null){
+        try{ await supaRpc('set_app_data', {p_pin:pin, p_key:key, p_value:local}); cloudCache.set(key, local); }catch(e){}
+      }
+    }
+  }
+}
+
 async function sGet(key){
-  if(HAS_CLOUD){ try{ return await window.storage.get(key); }catch(e){ return null; } }
+  if(cloudCache && cloudCache.has(key)) return {key, value:cloudCache.get(key)};
   try{ const v=localStorage.getItem(key); return v!==null?{key,value:v}:null; }catch(e){ return null; }
 }
 async function sSet(key,value){
-  if(HAS_CLOUD){ try{ return await window.storage.set(key,value); }catch(e){ console.error(e); return null; } }
-  try{ localStorage.setItem(key,value); return {key,value}; }catch(e){ console.error(e); return null; }
+  try{ localStorage.setItem(key,value); }catch(e){}
+  if(cloudCache){
+    cloudCache.set(key,value);
+    try{ await supaRpc('set_app_data', {p_pin: currentPin, p_key:key, p_value:value}); }
+    catch(e){ toast('Gagal sinkron ke server, tersimpan lokal'); }
+  }
+  return {key,value};
+}
+
+function showPinGate(errorMsg){
+  const el = document.getElementById('pin-error');
+  if(errorMsg){ el.textContent=errorMsg; el.style.display='block'; } else { el.style.display='none'; }
+  document.getElementById('pin-input').value='';
+  openModal('ov-pin');
+  setTimeout(()=>document.getElementById('pin-input').focus(), 50);
+}
+async function submitPin(){
+  const pin = document.getElementById('pin-input').value.trim();
+  if(!pin) return;
+  const btn = document.getElementById('pin-submit-btn');
+  btn.disabled = true; btn.textContent='Memeriksa...';
+  try{
+    await authenticatePin(pin);
+    try{ localStorage.setItem(PIN_STORAGE_KEY, pin); }catch(e){}
+    closeModal('ov-pin');
+    await loadData();
+  }catch(e){
+    if(e.kind==='pin'){ showPinGate('PIN salah, coba lagi.'); }
+    else{
+      cloudCache=null; currentPin=null;
+      closeModal('ov-pin');
+      toast('Tidak bisa konek ke server, pakai mode lokal');
+      await loadData();
+    }
+  }finally{
+    btn.disabled=false; btn.textContent='Masuk';
+  }
+}
+async function changePinFlow(){
+  const oldPin = document.getElementById('cp-old').value.trim();
+  const newPin = document.getElementById('cp-new').value.trim();
+  if(!oldPin || !newPin){ toast('Isi PIN lama & PIN baru'); return; }
+  if(!cloudCache){ toast('Tidak terhubung ke server, tidak bisa ganti PIN'); return; }
+  try{
+    await supaRpc('change_pin', {p_old_pin:oldPin, p_new_pin:newPin});
+    currentPin = newPin;
+    try{ localStorage.setItem(PIN_STORAGE_KEY, newPin); }catch(e){}
+    document.getElementById('cp-old').value='';
+    document.getElementById('cp-new').value='';
+    toast('PIN berhasil diubah');
+  }catch(e){
+    toast(e.kind==='pin' ? 'PIN lama salah' : 'Gagal mengubah PIN');
+  }
+}
+async function initApp(){
+  let savedPin=null;
+  try{ savedPin = localStorage.getItem(PIN_STORAGE_KEY); }catch(e){}
+  if(savedPin){
+    try{
+      await authenticatePin(savedPin);
+      closeModal('ov-pin');
+      await loadData();
+      return;
+    }catch(e){
+      if(e.kind==='pin'){
+        try{ localStorage.removeItem(PIN_STORAGE_KEY); }catch(err){}
+        showPinGate('PIN tersimpan sudah tidak berlaku, masukkan PIN baru.');
+        return;
+      }
+      cloudCache=null; currentPin=null;
+      closeModal('ov-pin');
+      toast('Tidak bisa konek ke server, pakai mode lokal');
+      await loadData();
+      return;
+    }
+  }
+  showPinGate();
 }
 
 function uid(p){ return p+'_'+Date.now()+'_'+Math.floor(Math.random()*100000); }
@@ -727,8 +873,9 @@ document.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',(
 function closeModal(id){ document.getElementById(id).classList.remove('show'); }
 function openModal(id){ document.getElementById(id).classList.add('show'); }
 document.querySelectorAll('.overlay').forEach(ov=>{
-  ov.addEventListener('click',e=>{ if(e.target===ov) ov.classList.remove('show'); });
+  ov.addEventListener('click',e=>{ if(e.target===ov && ov.id!=='ov-pin') ov.classList.remove('show'); });
 });
+document.getElementById('pin-input').addEventListener('keydown', e=>{ if(e.key==='Enter') submitPin(); });
 
 /* ================= COST MODEL ================= */
 function effectivePrice(ing){
@@ -1430,7 +1577,7 @@ function exportPlanCSV(){
 }
 
 /* ================= INIT ================= */
-loadData();
+initApp();
 </script>
 </body>
 </html>

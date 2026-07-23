@@ -1,6 +1,6 @@
 # THE BIG GUYS — Recipe Costing
 
-A single-page HPP (harga pokok produksi) and recipe-costing tool for THE BIG GUYS burger business, entirely client-side (no backend, no build step).
+A single-page HPP (harga pokok produksi) and recipe-costing tool for THE BIG GUYS burger business — no build step, backed by Supabase for shared, cross-device data storage.
 
 ## Features
 
@@ -11,7 +11,16 @@ A single-page HPP (harga pokok produksi) and recipe-costing tool for THE BIG GUY
 - **Rencana Produksi (Production Plans)** — combine multiple recipes into a plan and get an aggregated market list and cost summary, with CSV export.
 - **Pengaturan (Settings)** — hourly labor rate, overhead %, default target margin, default waste %, price rounding step, custom units, business name/currency, and dark mode.
 
-Data is persisted in `localStorage` (or a `window.storage` bridge if the hosting shell provides one).
+## Data storage & access
+
+Data (ingredients, recipes, plans, settings) is stored server-side in a Supabase Postgres database, shared across every device. Access is gated by a single shared PIN (set in Settings → *Ubah PIN Akses*):
+
+- The frontend never talks to the `app_data`/`app_auth` tables directly — `anon`/`authenticated` have zero grants on them. All reads/writes go through three `SECURITY DEFINER` RPC functions (`get_app_data`, `set_app_data`, `change_pin`) that verify the PIN (hashed with `pgcrypto`'s `crypt()`) before touching any row.
+- The entered PIN is cached in `localStorage` on that device so it isn't asked for on every visit. Deleting that value (or clearing site data) will re-prompt for the PIN.
+- If the device can't reach Supabase (offline, outage), the app falls back to a local-only `localStorage` cache instead of blocking — it re-syncs on the next successful save once connectivity returns.
+- The very first device to authenticate against a freshly created (empty) backend migrates whatever it already has in `localStorage` up to Supabase automatically.
+
+The schema migration lives in Supabase itself (project "The Big Guys"); rerun/adjust it via the Supabase SQL editor or MCP `apply_migration` if you need to change it.
 
 ## Local development
 
