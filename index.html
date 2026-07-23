@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>THE BIG GUYS — Recipe Costing</title>
 <meta name="description" content="Kalkulator HPP, resep, batch produksi, dan rencana produksi untuk THE BIG GUYS.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23c81e2c'/%3E%3Ctext x='50' y='68' font-size='58' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'%3EB%3C/text%3E%3C/svg%3E">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="icon" type="image/png" sizes="512x512" href="assets/favicon-512.png">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -53,15 +55,23 @@ button{font-family:inherit;cursor:pointer;}
 input,select{font-family:inherit;}
 ::selection{background:var(--red);color:#fff;}
 
+/* ================= TOPBAR ================= */
+:root{ --topbar-h:64px; }
+.topbar{
+  position:sticky;top:0;z-index:95;height:var(--topbar-h);
+  background:var(--surface);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;padding:8px 16px;
+}
+.topbar-logo{height:100%;max-height:44px;width:auto;display:block;}
+
 /* ================= LAYOUT ================= */
-.app{display:flex;min-height:100vh;}
+.app{display:flex;min-height:calc(100vh - var(--topbar-h));}
 .sidebar{
   width:230px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);
-  display:flex;flex-direction:column;position:sticky;top:0;height:100vh;
+  display:flex;flex-direction:column;position:sticky;top:var(--topbar-h);height:calc(100vh - var(--topbar-h));
 }
-.brand{padding:22px 20px 16px;border-bottom:1px solid var(--border);}
-.brand-name{font-family:var(--font-display);font-weight:800;font-size:17px;letter-spacing:.5px;color:var(--red);}
-.brand-sub{font-size:11.5px;color:var(--g500);margin-top:2px;}
+.brand{padding:18px 20px;border-bottom:1px solid var(--border);}
+.brand-sub{font-size:11.5px;color:var(--g500);}
 nav{flex:1;padding:14px 12px;display:flex;flex-direction:column;gap:2px;overflow-y:auto;}
 .nav-btn{
   display:flex;align-items:center;gap:10px;text-align:left;background:none;border:none;
@@ -272,7 +282,7 @@ input[type="text"],input[type="number"],input[type="search"],input[type="email"]
 
 /* ================= PRINT ================= */
 @media print{
-  .sidebar,.bottom-nav,.page-actions,.toolbar,.row-actions,.toast{display:none!important;}
+  .topbar,.sidebar,.bottom-nav,.page-actions,.toolbar,.row-actions,.toast{display:none!important;}
   .print-head{display:block;margin-bottom:16px;border-bottom:2px solid var(--red);padding-bottom:10px;}
   .print-head h1{font-size:20px;color:var(--red);}
   .print-head p{font-size:11px;color:#555;}
@@ -281,10 +291,12 @@ input[type="text"],input[type="number"],input[type="search"],input[type="email"]
 </style>
 </head>
 <body>
+<header class="topbar">
+  <img src="assets/logo.png" alt="THE BIG GUYS" class="topbar-logo">
+</header>
 <div class="app">
   <aside class="sidebar">
     <div class="brand">
-      <div class="brand-name">THE BIG GUYS</div>
       <div class="brand-sub">Recipe Costing</div>
     </div>
     <nav>
