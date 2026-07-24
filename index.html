@@ -208,7 +208,7 @@ input[type="text"],input[type="number"],input[type="search"],input[type="email"]
 
 /* ================= ITEM ROWS (recipe/ingredient composer) ================= */
 .item-row{display:grid;grid-template-columns:1fr 90px 100px 32px;gap:8px;align-items:center;margin-bottom:8px;}
-.item-row select{min-width:0;}
+.item-row select,.item-row input[type="text"]{min-width:0;}
 .item-row .sub{font-size:12.5px;font-weight:600;text-align:right;color:var(--g600);}
 .item-row .rm{background:var(--red-light);color:var(--red-dark);border:none;border-radius:7px;width:32px;height:32px;font-size:14px;}
 @media (max-width:560px){.item-row{grid-template-columns:1fr 70px 28px;}.item-row .sub{display:none;}}
@@ -648,6 +648,7 @@ input[type="text"],input[type="number"],input[type="search"],input[type="email"]
 </div>
 <datalist id="dl-ingcats"></datalist>
 <datalist id="dl-reccats"></datalist>
+<datalist id="dl-ing-names"></datalist>
 <div class="toast" id="toast">
   <svg viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></svg>
   <span id="toast-msg"></span>
@@ -1224,7 +1225,23 @@ function openRecipeForm(id){
 }
 function addItemRow(){ currentItems.push({ingredientId:ingredients[0].id,qty:0}); renderItemRows(); }
 function removeItemRow(idx){ currentItems.splice(idx,1); renderItemRows(); }
-function updateItemRow(idx,f,v){ currentItems[idx][f]=f==='qty'?(parseFloat(v)||0):v; renderItemRows(); }
+function onIngredientNameInput(idx,name){
+  const match=ingredients.find(i=>i.name.trim().toLowerCase()===name.trim().toLowerCase());
+  currentItems[idx].ingredientId=match?match.id:null;
+  updateRowSub(idx);
+  updateBreakdownDisplay();
+}
+function onQtyInput(idx,val){
+  currentItems[idx].qty=parseFloat(val)||0;
+  updateRowSub(idx);
+  updateBreakdownDisplay();
+}
+function updateRowSub(idx){
+  const it=currentItems[idx]; if(!it) return;
+  const ing=ingredients.find(i=>i.id===it.ingredientId);
+  const el=document.getElementById('item-sub-'+idx);
+  if(el) el.textContent=fmtRp(ing?effectivePrice(ing)*it.qty:0);
+}
 
 function calcFormTotals(){
   const ingCost=currentItems.reduce((s,it)=>{
@@ -1244,16 +1261,19 @@ function calcFormTotals(){
 function renderItemRows(){
   const wrap=document.getElementById('rec-items');
   wrap.innerHTML=currentItems.map((it,idx)=>{
-    const opts=ingredients.map(i=>`<option value="${i.id}" ${i.id===it.ingredientId?'selected':''}>${esc(i.name)} (${fmtRp(effectivePrice(i))}/${esc(i.unit)})</option>`).join('');
     const ing=ingredients.find(i=>i.id===it.ingredientId);
     const sub=ing?effectivePrice(ing)*it.qty:0;
     return `<div class="item-row">
-      <select onchange="updateItemRow(${idx},'ingredientId',this.value)">${opts}</select>
-      <input type="number" value="${it.qty}" placeholder="jumlah" oninput="updateItemRow(${idx},'qty',this.value)">
-      <span class="sub">${fmtRp(sub)}</span>
+      <input type="text" list="dl-ing-names" value="${esc(ing?ing.name:'')}" placeholder="Cari bahan..." oninput="onIngredientNameInput(${idx},this.value)">
+      <input type="number" value="${it.qty}" placeholder="jumlah" oninput="onQtyInput(${idx},this.value)">
+      <span class="sub" id="item-sub-${idx}">${fmtRp(sub)}</span>
       <button class="rm" onclick="removeItemRow(${idx})">✕</button>
     </div>`;
   }).join('');
+  document.getElementById('dl-ing-names').innerHTML=ingredients.map(i=>`<option value="${esc(i.name)}">`).join('');
+  updateBreakdownDisplay();
+}
+function updateBreakdownDisplay(){
   const t=calcFormTotals();
   const autoOvRow=(settings.overheadPct||0)>0
     ? `<div class="bd-row"><span class="l">Overhead Otomatis <span class="d">(${settings.overheadPct}% dari bahan)</span></span><span class="v">${fmtRp(t.autoOv)}</span></div>`
@@ -1291,15 +1311,15 @@ function applyTargetMargin(){
   updateMarginView();
   toast('Harga jual dihitung: '+fmtRp(sell));
 }
-['rec-preptime','rec-overhead','rec-yield'].forEach(id=>document.getElementById(id).addEventListener('input',renderItemRows));
+['rec-preptime','rec-overhead','rec-yield'].forEach(id=>document.getElementById(id).addEventListener('input',updateBreakdownDisplay));
 document.getElementById('rec-sell').addEventListener('input',updateMarginView);
 
 async function saveRecipe(){
   const id=document.getElementById('rec-id').value;
   const name=document.getElementById('rec-name').value.trim();
   if(!name){ toast('Nama resep wajib diisi'); return; }
-  const items=currentItems.filter(it=>it.qty>0);
-  if(!items.length){ toast('Minimal 1 bahan dengan jumlah > 0'); return; }
+  const items=currentItems.filter(it=>it.qty>0 && ingredients.some(i=>i.id===it.ingredientId));
+  if(!items.length){ toast('Pilih bahan dari daftar & isi jumlah > 0'); return; }
   const data={
     name,
     category:document.getElementById('rec-category').value.trim(),
