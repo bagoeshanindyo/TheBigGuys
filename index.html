@@ -574,6 +574,7 @@ input[type="text"],input[type="number"],input[type="search"],input[type="email"]
         <div class="field"><label>Waktu Persiapan (menit)</label><input id="rec-preptime" type="number" min="0" placeholder="0"><p class="hint">Tarif: <b id="rec-rate-hint">belum diatur</b></p></div>
         <div class="field"><label>Biaya Lain-lain (Rp)</label><input id="rec-overhead" type="number" min="0" placeholder="0"></div>
       </div>
+      <div class="field check-row"><input id="rec-overhead-enabled" type="checkbox" checked onchange="updateBreakdownDisplay()"><label style="margin:0;">Sertakan overhead otomatis dari Pengaturan</label></div>
 
       <div class="divider"></div>
       <div class="section-title" style="margin-top:0;">Komposisi Bahan</div>
@@ -915,22 +916,70 @@ function effectivePrice(ing){
   const f=1-((ing.waste||0)/100);
   return f>0 ? (ing.price||0)/f : (ing.price||0);
 }
-function recipeCost(rec){
+// Recipe items can reference either a raw ingredient or another recipe (used as a sub-component).
+// Older saved items only have {ingredientId,qty}; normalize those to the {refType,refId,qty} shape.
+function normalizeItem(it){
+  if(it.refType) return it;
+  return {refType:'ingredient', refId:it.ingredientId, qty:it.qty};
+}
+// Would selecting `candidateRecipeId` as a component of `hostRecipeId` create a reference cycle?
+function recipeUsesRecipe(rec, targetId, seen){
+  seen = seen || new Set();
+  if(seen.has(rec.id)) return false;
+  seen = new Set(seen); seen.add(rec.id);
+  return (rec.items||[]).some(raw=>{
+    const it=normalizeItem(raw);
+    if(it.refType!=='recipe' || !it.refId) return false;
+    if(it.refId===targetId) return true;
+    const sub=recipes.find(r=>r.id===it.refId);
+    return sub ? recipeUsesRecipe(sub, targetId, seen) : false;
+  });
+}
+function recipeCost(rec, seen){
+  seen = new Set(seen||[]); seen.add(rec.id);
   let ingCost=0;
-  (rec.items||[]).forEach(it=>{
-    const ing=ingredients.find(i=>i.id===it.ingredientId);
-    if(ing) ingCost+=effectivePrice(ing)*(it.qty||0);
+  (rec.items||[]).forEach(raw=>{
+    const it=normalizeItem(raw);
+    if(it.refType==='recipe'){
+      if(!it.refId || seen.has(it.refId)) return; // missing or would cycle -> contributes 0
+      const sub=recipes.find(r=>r.id===it.refId);
+      if(sub) ingCost += recipeCost(sub, seen).perUnit*(it.qty||0);
+    }else{
+      const ing=ingredients.find(i=>i.id===it.refId);
+      if(ing) ingCost+=effectivePrice(ing)*(it.qty||0);
+    }
   });
   const prepMinutes=rec.prepMinutes||0;
   const laborCost=(prepMinutes/60)*(settings.hourlyRate||0) + ((!prepMinutes&&rec.labor)?rec.labor:0);
-  const autoOverhead=ingCost*((settings.overheadPct||0)/100);
+  const overheadEnabled=rec.overheadEnabled!==false;
+  const autoOverhead=overheadEnabled?ingCost*((settings.overheadPct||0)/100):0;
   const manualOverhead=rec.overhead||0;
   const overheadCost=autoOverhead+manualOverhead;
   const total=ingCost+laborCost+overheadCost;
   const perUnit=rec.yieldQty?total/rec.yieldQty:total;
   let margin=null,profit=null;
   if(rec.sellPrice){ profit=rec.sellPrice-perUnit; margin=(profit/rec.sellPrice)*100; }
-  return {ingCost,laborCost,overheadCost,autoOverhead,manualOverhead,total,perUnit,margin,profit,prepMinutes};
+  return {ingCost,laborCost,overheadCost,autoOverhead,manualOverhead,total,perUnit,margin,profit,prepMinutes,overheadEnabled};
+}
+// Expands a recipe's items down to raw ingredients (recursing through sub-recipe components),
+// for shopping lists where only purchasable ingredients are useful.
+function collectBaseIngredients(rec, multiplier, seen, out){
+  seen = new Set(seen||[]); seen.add(rec.id);
+  out = out || {};
+  (rec.items||[]).forEach(raw=>{
+    const it=normalizeItem(raw);
+    if(it.refType==='recipe'){
+      if(!it.refId || seen.has(it.refId)) return;
+      const sub=recipes.find(r=>r.id===it.refId);
+      if(sub) collectBaseIngredients(sub, multiplier*(it.qty||0)/(sub.yieldQty||1), seen, out);
+    }else{
+      const ing=ingredients.find(i=>i.id===it.refId);
+      if(!ing) return;
+      if(!out[ing.id]) out[ing.id]={ing,qty:0};
+      out[ing.id].qty += (it.qty||0)*multiplier;
+    }
+  });
+  return out;
 }
 function marginBadge(m){
   if(m===null||m===undefined) return '<span class="badge gray">-</span>';
@@ -1102,7 +1151,7 @@ async function saveIngredient(){
   renderAll();
 }
 async function deleteIngredient(id){
-  const used=recipes.filter(r=>(r.items||[]).some(it=>it.ingredientId===id));
+  const used=recipes.filter(r=>(r.items||[]).some(it=>{const n=normalizeItem(it); return n.refType==='ingredient'&&n.refId===id;}));
   if(used.length && !confirm('Bahan ini dipakai di '+used.length+' resep. Tetap hapus?')) return;
   if(!used.length && !confirm('Hapus bahan ini?')) return;
   ingredients=ingredients.filter(i=>i.id!==id);
@@ -1139,6 +1188,7 @@ function openHistory(id){
 
 /* ================= RECIPES ================= */
 let currentItems=[];
+let currentEditingRecipeId=null;
 function renderRecipes(){
   const q=(document.getElementById('rec-search').value||'').toLowerCase();
   const list=recipes.filter(r=>r.name.toLowerCase().includes(q)||(r.category||'').toLowerCase().includes(q));
@@ -1194,6 +1244,7 @@ function renderRecipes(){
 function openRecipeForm(id){
   if(!ingredients.length){ toast('Tambahkan bahan baku dulu'); goPage('ingredients'); return; }
   document.getElementById('rec-id').value=id||'';
+  currentEditingRecipeId=id||null;
   document.getElementById('rec-rate-hint').textContent=settings.hourlyRate?fmtRp(settings.hourlyRate)+'/jam':'belum diatur — buka Pengaturan';
   if(id){
     const r=recipes.find(x=>x.id===id);
@@ -1204,9 +1255,10 @@ function openRecipeForm(id){
     document.getElementById('rec-yield-unit').value=r.yieldUnit||'';
     document.getElementById('rec-preptime').value=r.prepMinutes||'';
     document.getElementById('rec-overhead').value=r.overhead||'';
+    document.getElementById('rec-overhead-enabled').checked=r.overheadEnabled!==false;
     document.getElementById('rec-sell').value=r.sellPrice||'';
     document.getElementById('rec-target-margin').value='';
-    currentItems=(r.items||[]).map(it=>({...it}));
+    currentItems=(r.items||[]).map(it=>({...normalizeItem(it)}));
   }else{
     document.getElementById('rec-title').textContent='Tambah Resep';
     document.getElementById('rec-name').value='';
@@ -1215,19 +1267,52 @@ function openRecipeForm(id){
     document.getElementById('rec-yield-unit').value='porsi';
     document.getElementById('rec-preptime').value='';
     document.getElementById('rec-overhead').value='';
+    document.getElementById('rec-overhead-enabled').checked=true;
     document.getElementById('rec-sell').value='';
     document.getElementById('rec-target-margin').value=settings.targetMargin||'';
     currentItems=[];
   }
-  if(!currentItems.length) currentItems.push({ingredientId:ingredients[0].id,qty:0});
+  if(!currentItems.length) currentItems.push({refType:'ingredient',refId:ingredients[0].id,qty:0});
   renderItemRows();
   openModal('ov-rec');
 }
-function addItemRow(){ currentItems.push({ingredientId:ingredients[0].id,qty:0}); renderItemRows(); }
+function addItemRow(){ currentItems.push({refType:'ingredient',refId:ingredients[0].id,qty:0}); renderItemRows(); }
 function removeItemRow(idx){ currentItems.splice(idx,1); renderItemRows(); }
+// A row can match either a raw ingredient or another recipe (used as a sub-component).
+// Recipes used as candidates exclude the recipe currently being edited and anything that
+// would create a reference cycle (A contains B contains A).
+function resolveRefByName(name){
+  const n=name.trim().toLowerCase();
+  if(!n) return null;
+  const ing=ingredients.find(i=>i.name.trim().toLowerCase()===n);
+  if(ing) return {refType:'ingredient',refId:ing.id};
+  const rec=recipes.find(r=>r.name.trim().toLowerCase()===n && r.id!==currentEditingRecipeId);
+  if(rec){
+    if(currentEditingRecipeId && recipeUsesRecipe(rec, currentEditingRecipeId)){
+      toast('Tidak bisa: akan membuat referensi melingkar antar resep');
+      return null;
+    }
+    return {refType:'recipe',refId:rec.id};
+  }
+  return null;
+}
+function getRefCost(it, seenBaseId){
+  seenBaseId = seenBaseId!==undefined ? seenBaseId : currentEditingRecipeId;
+  if(it.refType==='recipe'){
+    const sub=recipes.find(r=>r.id===it.refId);
+    return sub?recipeCost(sub, seenBaseId?[seenBaseId]:[]).perUnit*(it.qty||0):0;
+  }
+  const ing=ingredients.find(i=>i.id===it.refId);
+  return ing?effectivePrice(ing)*(it.qty||0):0;
+}
+function getRefName(it){
+  if(it.refType==='recipe'){ const sub=recipes.find(r=>r.id===it.refId); return sub?sub.name:''; }
+  const ing=ingredients.find(i=>i.id===it.refId); return ing?ing.name:'';
+}
 function onIngredientNameInput(idx,name){
-  const match=ingredients.find(i=>i.name.trim().toLowerCase()===name.trim().toLowerCase());
-  currentItems[idx].ingredientId=match?match.id:null;
+  const match=resolveRefByName(name);
+  currentItems[idx].refType=match?match.refType:'ingredient';
+  currentItems[idx].refId=match?match.refId:null;
   updateRowSub(idx);
   updateBreakdownDisplay();
 }
@@ -1238,45 +1323,47 @@ function onQtyInput(idx,val){
 }
 function updateRowSub(idx){
   const it=currentItems[idx]; if(!it) return;
-  const ing=ingredients.find(i=>i.id===it.ingredientId);
   const el=document.getElementById('item-sub-'+idx);
-  if(el) el.textContent=fmtRp(ing?effectivePrice(ing)*it.qty:0);
+  if(el) el.textContent=fmtRp(getRefCost(it));
+  const badge=document.getElementById('item-badge-'+idx);
+  if(badge) badge.style.display=it.refType==='recipe'?'':'none';
 }
 
 function calcFormTotals(){
-  const ingCost=currentItems.reduce((s,it)=>{
-    const ing=ingredients.find(i=>i.id===it.ingredientId);
-    return s+(ing?effectivePrice(ing)*it.qty:0);
-  },0);
+  const ingCost=currentItems.reduce((s,it)=>s+getRefCost(it),0);
   const prep=parseFloat(document.getElementById('rec-preptime').value)||0;
   const labor=(prep/60)*(settings.hourlyRate||0);
-  const autoOv=ingCost*((settings.overheadPct||0)/100);
+  const overheadEnabled=document.getElementById('rec-overhead-enabled').checked;
+  const autoOv=overheadEnabled?ingCost*((settings.overheadPct||0)/100):0;
   const manualOv=parseFloat(document.getElementById('rec-overhead').value)||0;
   const overhead=autoOv+manualOv;
   const total=ingCost+labor+overhead;
   const yieldQty=parseFloat(document.getElementById('rec-yield').value)||1;
   const perUnit=yieldQty?total/yieldQty:total;
-  return {ingCost,prep,labor,autoOv,manualOv,overhead,total,yieldQty,perUnit};
+  return {ingCost,prep,labor,autoOv,manualOv,overhead,total,yieldQty,perUnit,overheadEnabled};
 }
 function renderItemRows(){
   const wrap=document.getElementById('rec-items');
   wrap.innerHTML=currentItems.map((it,idx)=>{
-    const ing=ingredients.find(i=>i.id===it.ingredientId);
-    const sub=ing?effectivePrice(ing)*it.qty:0;
+    const sub=getRefCost(it);
     return `<div class="item-row">
-      <input type="text" list="dl-ing-names" value="${esc(ing?ing.name:'')}" placeholder="Cari bahan..." oninput="onIngredientNameInput(${idx},this.value)">
+      <div style="display:flex;gap:6px;align-items:center;min-width:0;">
+        <input type="text" list="dl-ing-names" value="${esc(getRefName(it))}" placeholder="Cari bahan atau resep..." style="flex:1;min-width:0;" oninput="onIngredientNameInput(${idx},this.value)">
+        <span class="chip" id="item-badge-${idx}" style="flex-shrink:0;${it.refType==='recipe'?'':'display:none;'}">Resep</span>
+      </div>
       <input type="number" value="${it.qty}" placeholder="jumlah" oninput="onQtyInput(${idx},this.value)">
       <span class="sub" id="item-sub-${idx}">${fmtRp(sub)}</span>
       <button class="rm" onclick="removeItemRow(${idx})">✕</button>
     </div>`;
   }).join('');
-  document.getElementById('dl-ing-names').innerHTML=ingredients.map(i=>`<option value="${esc(i.name)}">`).join('');
+  const recipeOptions=recipes.filter(r=>r.id!==currentEditingRecipeId).map(r=>`<option value="${esc(r.name)}">`).join('');
+  document.getElementById('dl-ing-names').innerHTML=ingredients.map(i=>`<option value="${esc(i.name)}">`).join('')+recipeOptions;
   updateBreakdownDisplay();
 }
 function updateBreakdownDisplay(){
   const t=calcFormTotals();
   const autoOvRow=(settings.overheadPct||0)>0
-    ? `<div class="bd-row"><span class="l">Overhead Otomatis <span class="d">(${settings.overheadPct}% dari bahan)</span></span><span class="v">${fmtRp(t.autoOv)}</span></div>`
+    ? `<div class="bd-row"><span class="l">Overhead Otomatis <span class="d">(${settings.overheadPct}% dari bahan${t.overheadEnabled?'':' — nonaktif'})</span></span><span class="v">${fmtRp(t.autoOv)}</span></div>`
     : '';
   document.getElementById('rec-breakdown').innerHTML=`
     <div class="bd-row"><span class="l">Biaya Bahan</span><span class="v">${fmtRp(t.ingCost)}</span></div>
@@ -1318,8 +1405,8 @@ async function saveRecipe(){
   const id=document.getElementById('rec-id').value;
   const name=document.getElementById('rec-name').value.trim();
   if(!name){ toast('Nama resep wajib diisi'); return; }
-  const items=currentItems.filter(it=>it.qty>0 && ingredients.some(i=>i.id===it.ingredientId));
-  if(!items.length){ toast('Pilih bahan dari daftar & isi jumlah > 0'); return; }
+  const items=currentItems.filter(it=>it.qty>0 && (it.refType==='recipe'?recipes.some(r=>r.id===it.refId):ingredients.some(i=>i.id===it.refId)));
+  if(!items.length){ toast('Pilih bahan atau resep dari daftar & isi jumlah > 0'); return; }
   const data={
     name,
     category:document.getElementById('rec-category').value.trim(),
@@ -1327,6 +1414,7 @@ async function saveRecipe(){
     yieldUnit:document.getElementById('rec-yield-unit').value.trim(),
     prepMinutes:parseFloat(document.getElementById('rec-preptime').value)||0,
     overhead:parseFloat(document.getElementById('rec-overhead').value)||0,
+    overheadEnabled:document.getElementById('rec-overhead-enabled').checked,
     sellPrice:parseFloat(document.getElementById('rec-sell').value)||0,
     items
   };
@@ -1351,7 +1439,9 @@ async function duplicateRecipe(id){
   renderAll();
 }
 async function deleteRecipe(id){
-  if(!confirm('Hapus resep ini?')) return;
+  const usedAsComponent=recipes.filter(r=>r.id!==id && (r.items||[]).some(it=>{const n=normalizeItem(it); return n.refType==='recipe'&&n.refId===id;}));
+  if(usedAsComponent.length && !confirm('Resep ini dipakai sebagai bahan di '+usedAsComponent.length+' resep lain. Tetap hapus?')) return;
+  if(!usedAsComponent.length && !confirm('Hapus resep ini?')) return;
   recipes=recipes.filter(r=>r.id!==id);
   plans.forEach(p=>{ p.items=(p.items||[]).filter(it=>it.recipeId!==id); });
   await saveRec(); await savePlans();
@@ -1363,8 +1453,14 @@ function openBreakdown(id){
   if(!r) return;
   const c=recipeCost(r);
   document.getElementById('break-title').textContent='Rincian — '+r.name;
-  const ingRows=(r.items||[]).map(it=>{
-    const ing=ingredients.find(i=>i.id===it.ingredientId);
+  const ingRows=(r.items||[]).map(raw=>{
+    const it=normalizeItem(raw);
+    if(it.refType==='recipe'){
+      const sub=recipes.find(x=>x.id===it.refId);
+      if(!sub) return '';
+      return `<div class="bd-row"><span class="l">${esc(sub.name)} <span class="chip">Resep</span> <span class="d">${it.qty} ${esc(sub.yieldUnit||'unit')}</span></span><span class="v">${fmtRp(getRefCost(it, r.id))}</span></div>`;
+    }
+    const ing=ingredients.find(i=>i.id===it.refId);
     if(!ing) return '';
     return `<div class="bd-row"><span class="l">${esc(ing.name)} <span class="d">${it.qty} ${esc(ing.unit)}${ing.waste?' • susut '+ing.waste+'%':''}</span></span><span class="v">${fmtRp(effectivePrice(ing)*it.qty)}</span></div>`;
   }).join('');
@@ -1444,12 +1540,8 @@ function renderBatch(){
       <div class="bd-row total"><span class="l">TOTAL</span><span class="v">${fmtRp(totalCost)}</span></div>
     </div>`;
 
-  const shopRows=(rec.items||[]).map(it=>{
-    const ing=ingredients.find(i=>i.id===it.ingredientId);
-    if(!ing) return '';
-    const qty=it.qty*mult;
-    return `<tr><td><span class="t-name">${esc(ing.name)}</span></td><td class="num">${fmtNum(qty)} ${esc(ing.unit)}</td><td class="num">${fmtRp(qty*effectivePrice(ing))}</td></tr>`;
-  }).join('');
+  const shopAgg=collectBaseIngredients(rec, mult);
+  const shopRows=Object.values(shopAgg).map(x=>`<tr><td><span class="t-name">${esc(x.ing.name)}</span></td><td class="num">${fmtNum(x.qty)} ${esc(x.ing.unit)}</td><td class="num">${fmtRp(x.qty*effectivePrice(x.ing))}</td></tr>`).join('');
   const shop=`
     <div class="section-title">Daftar Belanja</div>
     <div class="tbl-wrap"><table><thead><tr><th>Bahan</th><th class="num">Jumlah</th><th class="num">Biaya</th></tr></thead><tbody>${shopRows}</tbody></table></div>`;
@@ -1511,12 +1603,7 @@ function aggregatePlan(p){
     const c=recipeCost(rec);
     totalCost+=c.total*mult; totalIng+=c.ingCost*mult; totalLabor+=c.laborCost*mult; totalOv+=c.overheadCost*mult;
     breakdown.push({name:rec.name,qty:it.targetQty,unit:rec.yieldUnit||'',cost:c.total*mult,ing:c.ingCost*mult,lab:c.laborCost*mult,ov:c.overheadCost*mult});
-    (rec.items||[]).forEach(ri=>{
-      const ing=ingredients.find(i=>i.id===ri.ingredientId);
-      if(!ing) return;
-      if(!agg[ing.id]) agg[ing.id]={ing,qty:0};
-      agg[ing.id].qty+=ri.qty*mult;
-    });
+    collectBaseIngredients(rec, mult, [], agg);
   });
   return {agg,breakdown,totalCost,totalIng,totalLabor,totalOv};
 }
@@ -1611,11 +1698,8 @@ function exportBatchCSV(){
   if(!rec){ toast('Pilih resep dulu'); return; }
   const mult=parseFloat(document.getElementById('batch-mult').value)||1;
   const rows=[['Bahan','Jumlah','Satuan','Biaya']];
-  (rec.items||[]).forEach(it=>{
-    const ing=ingredients.find(i=>i.id===it.ingredientId);
-    if(!ing) return;
-    const qty=it.qty*mult;
-    rows.push([ing.name,Math.round(qty*100)/100,ing.unit,Math.round(qty*effectivePrice(ing))]);
+  Object.values(collectBaseIngredients(rec, mult)).forEach(x=>{
+    rows.push([x.ing.name,Math.round(x.qty*100)/100,x.ing.unit,Math.round(x.qty*effectivePrice(x.ing))]);
   });
   downloadCSV('belanja-'+rec.name.replace(/\s+/g,'-')+'.csv',rows);
 }
