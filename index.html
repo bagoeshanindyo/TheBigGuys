@@ -393,6 +393,13 @@ input[type="text"],input[type="number"],input[type="search"],input[type="email"]
           <div id="dash-price-moves"></div>
         </div>
       </div>
+      <div class="card" style="margin-top:20px;">
+        <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;">
+          <span>Produk Jual</span>
+          <button class="act" onclick="goPage('products')">Lihat semua</button>
+        </div>
+        <div id="dash-products"></div>
+      </div>
     </section>
 
     <!-- PRODUCTS -->
@@ -603,7 +610,17 @@ input[type="text"],input[type="number"],input[type="search"],input[type="email"]
       <input type="hidden" id="ing-id">
       <div class="form-grid">
         <div class="field"><label>Nama Bahan</label><input id="ing-name" type="text" placeholder="mis. Daging Sapi Giling"></div>
-        <div class="field"><label>Kategori</label><input id="ing-category" type="text" list="dl-ingcats" placeholder="opsional"></div>
+        <div class="field">
+          <label>Kategori</label>
+          <div class="ac-wrap">
+            <input id="ing-category" type="text" placeholder="opsional" autocomplete="off"
+              oninput="genAcShow('ing-category',()=>settings.ingCats||[])"
+              onfocus="genAcShow('ing-category',()=>settings.ingCats||[])"
+              onkeydown="genAcKeydown('ing-category',event)"
+              onblur="setTimeout(()=>genAcHide('ing-category'),150)">
+            <div class="ac-dropdown" id="ac-dd-ing-category"></div>
+          </div>
+        </div>
         <div class="field"><label>Satuan</label><input id="ing-unit" type="text" placeholder="gram / ml / pcs"></div>
         <div class="field"><label>Harga per Satuan</label><input id="ing-price" type="number" min="0" placeholder="0"></div>
         <div class="field"><label>Susut (%)</label><input id="ing-waste" type="number" min="0" max="95" placeholder="0"></div>
@@ -635,7 +652,17 @@ input[type="text"],input[type="number"],input[type="search"],input[type="email"]
       <input type="hidden" id="rec-id">
       <div class="form-grid">
         <div class="field"><label>Nama Resep</label><input id="rec-name" type="text" placeholder="mis. Cheeseburger Klasik"></div>
-        <div class="field"><label>Kategori</label><input id="rec-category" type="text" list="dl-reccats" placeholder="opsional"></div>
+        <div class="field">
+          <label>Kategori</label>
+          <div class="ac-wrap">
+            <input id="rec-category" type="text" placeholder="opsional" autocomplete="off"
+              oninput="genAcShow('rec-category',()=>settings.recCats||[])"
+              onfocus="genAcShow('rec-category',()=>settings.recCats||[])"
+              onkeydown="genAcKeydown('rec-category',event)"
+              onblur="setTimeout(()=>genAcHide('rec-category'),150)">
+            <div class="ac-dropdown" id="ac-dd-rec-category"></div>
+          </div>
+        </div>
         <div class="field"><label>Hasil (Yield)</label><input id="rec-yield" type="number" min="0" step="0.1" value="1"></div>
         <div class="field"><label>Satuan Hasil</label><input id="rec-yield-unit" type="text" placeholder="porsi / pcs"></div>
         <div class="field"><label>Waktu Persiapan (menit)</label><input id="rec-preptime" type="number" min="0" placeholder="0"><p class="hint">Tarif: <b id="rec-rate-hint">belum diatur</b></p></div>
@@ -717,8 +744,6 @@ input[type="text"],input[type="number"],input[type="search"],input[type="email"]
     </div>
   </div>
 </div>
-<datalist id="dl-ingcats"></datalist>
-<datalist id="dl-reccats"></datalist>
 <div class="toast" id="toast">
   <svg viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></svg>
   <span id="toast-msg"></span>
@@ -905,14 +930,9 @@ function fillSettingsForm(){
   document.getElementById('set-ingcats').value=(settings.ingCats||[]).join(', ');
   document.getElementById('set-reccats').value=(settings.recCats||[]).join(', ');
   renderCustomUnits();
-  renderCatDatalists();
   updatePrintHead();
 }
 function parseCats(v){ return v.split(',').map(s=>s.trim()).filter(Boolean); }
-function renderCatDatalists(){
-  document.getElementById('dl-ingcats').innerHTML=(settings.ingCats||[]).map(c=>`<option value="${esc(c)}">`).join('');
-  document.getElementById('dl-reccats').innerHTML=(settings.recCats||[]).map(c=>`<option value="${esc(c)}">`).join('');
-}
 function updatePrintHead(){
   document.getElementById('ph-name').textContent=settings.bizName||'THE BIG GUYS';
   document.getElementById('ph-sub').textContent='Recipe Costing • dicetak '+new Date().toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});
@@ -962,7 +982,6 @@ async function saveSettings(){
   settings.recCats=parseCats(document.getElementById('set-reccats').value);
   await sSet(K_SET,JSON.stringify(settings));
   applyTheme(settings.dark);
-  renderCatDatalists();
   updatePrintHead();
   toast('Pengaturan tersimpan');
   renderAll();
@@ -1091,6 +1110,7 @@ function renderDashboard(){
     <div class="stat"><div class="ic">${ICONS.doc}</div><div class="lbl">Resep</div><div class="val">${recipes.length}</div><div class="sub">${withM.length} sudah ada harga jual</div></div>
     <div class="stat"><div class="ic">${ICONS.coin}</div><div class="lbl">Rata-rata HPP / Unit</div><div class="val">${fmtRp(avgHpp)}</div><div class="sub">semua resep</div></div>
     <div class="stat"><div class="ic">${ICONS.chart}</div><div class="lbl">Rata-rata Margin</div><div class="val">${avgM!==null?avgM.toFixed(1)+'%':'-'}</div><div class="sub">${avgM!==null?'dari resep ber-harga jual':'isi harga jual di resep'}</div></div>
+    <div class="stat"><div class="ic">${ICONS.box}</div><div class="lbl">Produk Jual</div><div class="val">${products.length}</div><div class="sub">produk siap dijual</div></div>
   `;
 
   // top margin
@@ -1125,6 +1145,23 @@ function renderDashboard(){
         const sign=m.diff>0?'+':'';
         return `<tr><td><span class="t-name">${esc(m.name)}</span><div class="t-sub">${new Date(m.date).toLocaleDateString('id-ID',{day:'2-digit',month:'short'})}</div></td><td class="num">${fmtRp(m.now)}/${esc(m.unit)}</td><td class="num ${cls}">${sign}${fmtRp(m.diff)}</td></tr>`;
       }).join('')+`</tbody></table>`;
+  }
+
+  // produk jual
+  const dp=document.getElementById('dash-products');
+  const prodRows=products.map(p=>{
+    const rec=recipes.find(r=>r.id===p.recipeId);
+    return {p,rec,c:rec?recipeCost(rec):null};
+  }).slice(0,5);
+  if(!prodRows.length){
+    dp.innerHTML=emptyState('box','Belum ada produk jual','Tambahkan resep yang sudah dibuat sebagai produk jual.','<button class="btn btn-red btn-sm" onclick="goPage(\'products\')">+ Tambah Produk</button>');
+  }else{
+    const prodThumb=p=>p.photo
+      ? `<img src="${p.photo}" alt="" style="width:32px;height:32px;border-radius:7px;object-fit:cover;">`
+      : `<div style="width:32px;height:32px;border-radius:7px;background:var(--g100);display:flex;align-items:center;justify-content:center;color:var(--g400);">${ICONS.box}</div>`;
+    dp.innerHTML=`<table><thead><tr><th></th><th>Produk</th><th class="num">HPP</th><th class="num">Harga Jual</th><th style="text-align:center;">Margin</th></tr></thead><tbody>`+
+      prodRows.map(({p,rec,c})=>`<tr><td>${prodThumb(p)}</td><td><span class="t-name">${esc(rec?rec.name:'(resep dihapus)')}</span></td><td class="num">${c?fmtRp(c.perUnit):'-'}</td><td class="num">${rec&&rec.sellPrice?fmtRp(rec.sellPrice):'-'}</td><td style="text-align:center;">${c?marginBadge(c.margin):'<span class="badge gray">-</span>'}</td></tr>`).join('')+
+      `</tbody></table>`;
   }
 }
 function emptyState(icon,title,desc,cta){
@@ -1565,6 +1602,50 @@ function onNameKeydown(idx,e){
   else if(e.key==='Enter'){ if(acHighlight[idx]!=null){ e.preventDefault(); pickAcOption(idx,acHighlight[idx]); } }
   else if(e.key==='Escape'){ hideAcDropdown(idx); }
 }
+// Generic 2-char autosuggest for plain text fields (e.g. category inputs) that
+// suggest from a flat string list, reusing the same ac-wrap/ac-dropdown/ac-option
+// styling and keyboard behavior as the recipe-composition autocomplete above.
+let genAcMatches={}, genAcHighlight={};
+function genAcShow(fieldId,candidatesFn){
+  const dd=document.getElementById('ac-dd-'+fieldId);
+  const input=document.getElementById(fieldId);
+  if(!dd||!input) return;
+  const q=input.value.trim().toLowerCase();
+  if(q.length<2){ genAcHide(fieldId); return; }
+  const uniq=[...new Set(candidatesFn())].filter(Boolean);
+  const matches=uniq.filter(c=>c.toLowerCase().includes(q)).slice(0,5);
+  genAcMatches[fieldId]=matches;
+  genAcHighlight[fieldId]=null;
+  if(!matches.length){ genAcHide(fieldId); return; }
+  dd.innerHTML=matches.map((m,pos)=>`<div class="ac-option" onmousedown="genAcPick('${fieldId}',${pos})">${esc(m)}</div>`).join('');
+  dd.classList.add('show');
+}
+function genAcHide(fieldId){
+  const dd=document.getElementById('ac-dd-'+fieldId);
+  if(dd){ dd.classList.remove('show'); dd.innerHTML=''; }
+  delete genAcMatches[fieldId]; delete genAcHighlight[fieldId];
+}
+function genAcPick(fieldId,pos){
+  const m=(genAcMatches[fieldId]||[])[pos];
+  if(m===undefined) return;
+  const input=document.getElementById(fieldId);
+  if(input) input.value=m;
+  genAcHide(fieldId);
+}
+function genAcRenderHighlight(fieldId){
+  const dd=document.getElementById('ac-dd-'+fieldId);
+  if(!dd) return;
+  [...dd.children].forEach((el,pos)=>el.classList.toggle('active',pos===genAcHighlight[fieldId]));
+}
+function genAcKeydown(fieldId,e){
+  const dd=document.getElementById('ac-dd-'+fieldId);
+  if(!dd||!dd.classList.contains('show')) return;
+  const matches=genAcMatches[fieldId]||[];
+  if(e.key==='ArrowDown'){ e.preventDefault(); genAcHighlight[fieldId]=Math.min((genAcHighlight[fieldId]??-1)+1,matches.length-1); genAcRenderHighlight(fieldId); }
+  else if(e.key==='ArrowUp'){ e.preventDefault(); genAcHighlight[fieldId]=Math.max((genAcHighlight[fieldId]??0)-1,0); genAcRenderHighlight(fieldId); }
+  else if(e.key==='Enter'){ if(genAcHighlight[fieldId]!=null){ e.preventDefault(); genAcPick(fieldId,genAcHighlight[fieldId]); } }
+  else if(e.key==='Escape'){ genAcHide(fieldId); }
+}
 function getRefCost(it, seenBaseId){
   seenBaseId = seenBaseId!==undefined ? seenBaseId : currentEditingRecipeId;
   if(it.refType==='recipe'){
@@ -1628,7 +1709,7 @@ function renderItemRows(){
         </div>
         <span class="chip" id="item-badge-${idx}" style="flex-shrink:0;${it.refType==='recipe'?'':'display:none;'}">Resep</span>
       </div>
-      <input type="number" value="${it.qty}" placeholder="jumlah" oninput="onQtyInput(${idx},this.value)">
+      <input type="number" value="${it.qty||''}" placeholder="jumlah" oninput="onQtyInput(${idx},this.value)">
       <span class="sub" id="item-sub-${idx}">${fmtRp(sub)}</span>
       <button class="rm" onclick="removeItemRow(${idx})">✕</button>
     </div>`;
