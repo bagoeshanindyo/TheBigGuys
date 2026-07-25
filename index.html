@@ -94,6 +94,11 @@ nav{flex:1;padding:14px 12px;display:flex;flex-direction:column;gap:2px;overflow
 .page-head h2{font-size:22px;}
 .page-sub{font-size:13px;color:var(--g500);margin-top:4px;}
 .page-actions{display:flex;gap:8px;flex-wrap:wrap;}
+.quote-banner{
+  background:var(--red-light);border-left:4px solid var(--red);border-radius:var(--radius-sm);
+  padding:14px 18px;margin-bottom:18px;font-family:var(--font-display);font-weight:700;font-style:italic;
+  font-size:15px;color:var(--red-dark);text-align:center;
+}
 
 /* ================= BUTTONS ================= */
 .btn{border:1px solid var(--border);background:var(--surface);color:var(--text);padding:9px 16px;border-radius:var(--radius-sm);font-size:13px;font-weight:600;transition:filter .12s,transform .05s;}
@@ -355,6 +360,7 @@ input[type="text"],input[type="number"],input[type="search"],input[type="email"]
     </div>
     <nav>
       <button class="nav-btn active" data-page="dashboard">Dashboard</button>
+      <button class="nav-btn" data-page="products">Produk Jual</button>
       <button class="nav-btn" data-page="ingredients">Bahan Baku</button>
       <button class="nav-btn" data-page="recipes">Resep</button>
       <button class="nav-btn" data-page="batch">Kalkulator Batch</button>
@@ -372,6 +378,7 @@ input[type="text"],input[type="number"],input[type="search"],input[type="email"]
 
     <!-- DASHBOARD -->
     <section class="page active" id="page-dashboard">
+      <div class="quote-banner">Bisnis Berkah Ber-4! Bismillah</div>
       <div class="page-head">
         <div><h2>Dashboard</h2><p class="page-sub">Ringkasan bahan, resep, HPP, dan tren harga.</p></div>
       </div>
@@ -386,6 +393,25 @@ input[type="text"],input[type="number"],input[type="search"],input[type="email"]
           <div id="dash-price-moves"></div>
         </div>
       </div>
+    </section>
+
+    <!-- PRODUCTS -->
+    <section class="page" id="page-products">
+      <div class="page-head">
+        <div><h2>Produk Jual</h2><p class="page-sub"><span id="prod-count">0 produk</span></p></div>
+        <div class="page-actions">
+          <button class="btn btn-red btn-sm" onclick="openProductForm()">+ Tambah Produk</button>
+        </div>
+      </div>
+      <div class="toolbar"><input id="prod-search" type="search" placeholder="Cari nama produk..." oninput="renderProducts()"></div>
+      <div id="prod-empty"></div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th></th><th>Produk</th><th class="num">HPP</th><th class="num">Harga Jual</th><th style="text-align:center;">Margin</th><th></th></tr></thead>
+          <tbody id="prod-tbody"></tbody>
+        </table>
+      </div>
+      <div class="cards" id="prod-cards"></div>
     </section>
 
     <!-- INGREDIENTS -->
@@ -433,7 +459,7 @@ input[type="text"],input[type="number"],input[type="search"],input[type="email"]
       <div class="page-head">
         <div><h2>Kalkulator Batch</h2><p class="page-sub">Skalakan resep untuk produksi dalam jumlah besar.</p></div>
         <div class="page-actions">
-          <button class="btn btn-ghost btn-sm" onclick="exportBatchCSV()">Ekspor Daftar Belanja</button>
+          <button class="btn btn-ghost btn-sm" id="batch-pdf-btn" onclick="exportBatchPDF()">Ekspor PDF</button>
         </div>
       </div>
       <div class="card batch-controls">
@@ -530,12 +556,44 @@ input[type="text"],input[type="number"],input[type="search"],input[type="email"]
 
 <nav class="bottom-nav">
   <button class="nav-btn active" data-page="dashboard">Dashboard</button>
+  <button class="nav-btn" data-page="products">Produk</button>
   <button class="nav-btn" data-page="ingredients">Bahan</button>
   <button class="nav-btn" data-page="recipes">Resep</button>
   <button class="nav-btn" data-page="batch">Batch</button>
   <button class="nav-btn" data-page="plans">Rencana</button>
   <button class="nav-btn" data-page="settings">Atur</button>
 </nav>
+
+<!-- Product modal -->
+<div class="overlay" id="ov-prod">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-head"><h3 id="prod-title">Tambah Produk</h3><button class="modal-x" onclick="closeModal('ov-prod')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="prod-id">
+      <div class="field" id="prod-recipe-field">
+        <label>Resep</label>
+        <select id="prod-recipe"></select>
+      </div>
+      <div class="field" id="prod-recipe-readonly-field" style="display:none;">
+        <label>Resep</label>
+        <input type="text" id="prod-recipe-name" disabled>
+      </div>
+      <div class="field">
+        <label>Deskripsi Produk</label>
+        <textarea id="prod-desc" rows="3" placeholder="opsional, mis. deskripsi untuk menu"></textarea>
+      </div>
+      <div class="field">
+        <label>Foto Produk</label>
+        <input type="file" id="prod-photo-input" accept="image/*" onchange="handleProductPhoto(this)">
+        <img id="prod-photo-preview" src="" alt="" style="display:none;max-width:160px;max-height:160px;border-radius:10px;border:1px solid var(--border);object-fit:cover;margin-top:10px;">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('ov-prod')">Batal</button>
+      <button class="btn btn-red" onclick="saveProduct()">Simpan Produk</button>
+    </div>
+  </div>
+</div>
 
 <!-- Ingredient modal -->
 <div class="overlay" id="ov-ing">
@@ -654,6 +712,9 @@ input[type="text"],input[type="number"],input[type="search"],input[type="email"]
   <div class="modal" style="max-width:520px;">
     <div class="modal-head"><h3 id="break-title">Rincian Biaya</h3><button class="modal-x" onclick="closeModal('ov-break')">✕</button></div>
     <div class="modal-body" id="break-body"></div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="break-pdf-btn" onclick="exportRecipePDF(currentBreakdownRecipeId)">Ekspor PDF</button>
+    </div>
   </div>
 </div>
 <datalist id="dl-ingcats"></datalist>
@@ -663,16 +724,17 @@ input[type="text"],input[type="number"],input[type="search"],input[type="email"]
   <span id="toast-msg"></span>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.3/dist/html2pdf.bundle.min.js"></script>
 <script>
 /* ================= STATE & STORAGE ================= */
-const K_ING='tbg_ingredients', K_REC='tbg_recipes', K_PLANS='tbg_plans', K_PLAN_LEGACY='tbg_plan', K_SET='tbg_settings';
+const K_ING='tbg_ingredients', K_REC='tbg_recipes', K_PLANS='tbg_plans', K_PLAN_LEGACY='tbg_plan', K_SET='tbg_settings', K_PROD='tbg_products';
 const DEFAULT_SETTINGS={hourlyRate:0,overheadPct:0,targetMargin:0,wasteDefault:0,bufferDefault:0,rounding:500,bizName:'THE BIG GUYS',currency:'Rp',dark:false,ingCats:[],recCats:[],customUnits:[]};
-let ingredients=[], recipes=[], plans=[], activePlanId=null, settings={...DEFAULT_SETTINGS};
+let ingredients=[], recipes=[], plans=[], products=[], activePlanId=null, settings={...DEFAULT_SETTINGS};
 
 /* ---- Supabase-backed storage, gated by real Supabase Auth (email + password) ---- */
 const SUPABASE_URL='https://jqzuoqgzqxzabvcrylmm.supabase.co';
 const SUPABASE_KEY='sb_publishable_1Or2ssuRDBPP5pzZ7ZSOKw_UBUl1b9t';
-const ALL_DATA_KEYS=[K_ING,K_REC,K_PLANS,K_SET];
+const ALL_DATA_KEYS=[K_ING,K_REC,K_PLANS,K_SET,K_PROD];
 let supabaseClient=null;
 let cloudCache=null; // Map<string,string> once a session + initial fetch succeed; null = local-only fallback
 
@@ -819,6 +881,8 @@ async function loadData(){
     }
   }catch(e){ plans=[]; }
   if(plans.length && !activePlanId) activePlanId=plans[0].id;
+  try{ const r=await sGet(K_PROD); products=r?JSON.parse(r.value):[]; }
+  catch(e){ products=[]; }
   fillSettingsForm();
   applyTheme(settings.dark);
   renderAll();
@@ -826,6 +890,7 @@ async function loadData(){
 const saveIng =()=>sSet(K_ING,JSON.stringify(ingredients));
 const saveRec =()=>sSet(K_REC,JSON.stringify(recipes));
 const savePlans=()=>sSet(K_PLANS,JSON.stringify(plans));
+const saveProducts=()=>sSet(K_PROD,JSON.stringify(products));
 
 function fillSettingsForm(){
   document.getElementById('set-rate').value=settings.hourlyRate||'';
@@ -1001,6 +1066,7 @@ function marginBadge(m){
 /* ================= RENDER ALL ================= */
 function renderAll(){
   renderDashboard();
+  renderProducts();
   renderIngredients();
   renderRecipes();
   renderBatchOptions();
@@ -1063,6 +1129,140 @@ function renderDashboard(){
 }
 function emptyState(icon,title,desc,cta){
   return `<div class="empty"><div class="eic">${ICONS[icon]||ICONS.box}</div><h4>${title}</h4><p>${desc}</p>${cta||''}</div>`;
+}
+
+/* ================= PRODUCTS (Produk Jual) ================= */
+let currentProductPhoto=null;
+function renderProducts(){
+  const q=(document.getElementById('prod-search').value||'').toLowerCase();
+  const list=products.filter(p=>{
+    const rec=recipes.find(r=>r.id===p.recipeId);
+    const name=rec?rec.name:'';
+    return name.toLowerCase().includes(q)||(p.description||'').toLowerCase().includes(q);
+  });
+  document.getElementById('prod-count').textContent=list.length+' produk';
+  const tbody=document.getElementById('prod-tbody');
+  const cards=document.getElementById('prod-cards');
+  const empty=document.getElementById('prod-empty');
+  if(!list.length){
+    tbody.innerHTML=''; cards.innerHTML='';
+    empty.innerHTML=emptyState('doc', q?'Tidak ditemukan':'Belum ada produk jual', q?'Coba kata kunci lain.':'Tambahkan resep yang sudah dibuat sebagai produk jual.',
+      q?'':'<button class="btn btn-red btn-sm" onclick="openProductForm()">+ Tambah Produk</button>');
+    return;
+  }
+  empty.innerHTML='';
+  const rows=list.map(p=>{
+    const rec=recipes.find(r=>r.id===p.recipeId);
+    const c=rec?recipeCost(rec):null;
+    return {p,rec,c};
+  });
+  const thumb=p=>p.photo
+    ? `<img src="${p.photo}" alt="" style="width:44px;height:44px;border-radius:8px;object-fit:cover;">`
+    : `<div style="width:44px;height:44px;border-radius:8px;background:var(--g100);display:flex;align-items:center;justify-content:center;color:var(--g400);">${ICONS.box}</div>`;
+  tbody.innerHTML=rows.map(({p,rec,c})=>`
+    <tr>
+      <td>${thumb(p)}</td>
+      <td>
+        <span class="t-name">${esc(rec?rec.name:'(resep dihapus)')}</span>
+        ${p.description?`<div class="t-sub">${esc(p.description)}</div>`:''}
+      </td>
+      <td class="num">${c?fmtRp(c.perUnit):'-'}</td>
+      <td class="num">${rec&&rec.sellPrice?fmtRp(rec.sellPrice):'-'}</td>
+      <td style="text-align:center;">${c?marginBadge(c.margin):'<span class="badge gray">-</span>'}</td>
+      <td><div class="row-actions">
+        <button class="act" onclick="openProductForm('${p.id}')">Edit</button>
+        <button class="act danger" onclick="removeProduct('${p.id}')">Hapus</button>
+      </div></td>
+    </tr>`).join('');
+  cards.innerHTML=rows.map(({p,rec,c})=>`
+    <div class="m-card">
+      <div class="top">
+        <div style="display:flex;gap:10px;align-items:center;">
+          ${thumb(p)}
+          <div><div class="t-name">${esc(rec?rec.name:'(resep dihapus)')}</div>${p.description?`<div class="t-sub">${esc(p.description)}</div>`:''}</div>
+        </div>
+        ${c?marginBadge(c.margin):''}
+      </div>
+      <div class="kv"><span>HPP / unit</span><b>${c?fmtRp(c.perUnit):'-'}</b></div>
+      <div class="kv"><span>Harga jual</span><b>${rec&&rec.sellPrice?fmtRp(rec.sellPrice):'-'}</b></div>
+      <div class="row-actions">
+        <button class="act" onclick="openProductForm('${p.id}')">Edit</button>
+        <button class="act danger" onclick="removeProduct('${p.id}')">Hapus</button>
+      </div>
+    </div>`).join('');
+}
+function openProductForm(id){
+  if(!id && !recipes.length){ toast('Buat resep dulu sebelum menambah produk jual'); goPage('recipes'); return; }
+  document.getElementById('prod-id').value=id||'';
+  document.getElementById('prod-photo-input').value='';
+  currentProductPhoto=null;
+  const preview=document.getElementById('prod-photo-preview');
+  preview.style.display='none'; preview.src='';
+  if(id){
+    const p=products.find(x=>x.id===id);
+    const rec=recipes.find(r=>r.id===p.recipeId);
+    document.getElementById('prod-title').textContent='Edit Produk';
+    document.getElementById('prod-recipe-field').style.display='none';
+    document.getElementById('prod-recipe-readonly-field').style.display='';
+    document.getElementById('prod-recipe-name').value=rec?rec.name:'(resep dihapus)';
+    document.getElementById('prod-desc').value=p.description||'';
+    if(p.photo){ currentProductPhoto=p.photo; preview.src=p.photo; preview.style.display=''; }
+  }else{
+    const available=recipes.filter(r=>!products.some(p=>p.recipeId===r.id));
+    if(!available.length){ toast('Semua resep sudah jadi produk jual'); return; }
+    document.getElementById('prod-title').textContent='Tambah Produk';
+    document.getElementById('prod-recipe-field').style.display='';
+    document.getElementById('prod-recipe-readonly-field').style.display='none';
+    document.getElementById('prod-recipe').innerHTML=available.map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join('');
+    document.getElementById('prod-desc').value='';
+  }
+  openModal('ov-prod');
+}
+function handleProductPhoto(inputEl){
+  const file=inputEl.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=(e)=>{
+    const img=new Image();
+    img.onload=()=>{
+      const maxW=480;
+      const scale=Math.min(1,maxW/img.width);
+      const canvas=document.createElement('canvas');
+      canvas.width=Math.round(img.width*scale);
+      canvas.height=Math.round(img.height*scale);
+      const ctx=canvas.getContext('2d');
+      ctx.drawImage(img,0,0,canvas.width,canvas.height);
+      currentProductPhoto=canvas.toDataURL('image/jpeg',0.72);
+      const preview=document.getElementById('prod-photo-preview');
+      preview.src=currentProductPhoto; preview.style.display='';
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+async function saveProduct(){
+  const id=document.getElementById('prod-id').value;
+  const description=document.getElementById('prod-desc').value.trim();
+  if(id){
+    const p=products.find(x=>x.id===id);
+    p.description=description;
+    p.photo=currentProductPhoto;
+  }else{
+    const recipeId=document.getElementById('prod-recipe').value;
+    if(!recipeId){ toast('Pilih resep dulu'); return; }
+    products.push({id:uid('prod'),recipeId,description,photo:currentProductPhoto});
+  }
+  await saveProducts();
+  closeModal('ov-prod');
+  toast(id?'Produk diperbarui':'Produk ditambahkan');
+  renderAll();
+}
+async function removeProduct(id){
+  if(!confirm('Hapus produk ini dari Produk Jual? (resepnya tidak ikut terhapus)')) return;
+  products=products.filter(p=>p.id!==id);
+  await saveProducts();
+  toast('Produk dihapus');
+  renderAll();
 }
 
 /* ================= INGREDIENTS ================= */
@@ -1205,6 +1405,7 @@ function openHistory(id){
 /* ================= RECIPES ================= */
 let currentItems=[];
 let currentEditingRecipeId=null;
+let currentBreakdownRecipeId=null;
 function renderRecipes(){
   const q=(document.getElementById('rec-search').value||'').toLowerCase();
   const list=recipes.filter(r=>r.name.toLowerCase().includes(q)||(r.category||'').toLowerCase().includes(q));
@@ -1518,13 +1719,15 @@ async function deleteRecipe(id){
   if(!usedAsComponent.length && !confirm('Hapus resep ini?')) return;
   recipes=recipes.filter(r=>r.id!==id);
   plans.forEach(p=>{ p.items=(p.items||[]).filter(it=>it.recipeId!==id); });
-  await saveRec(); await savePlans();
+  products=products.filter(p=>p.recipeId!==id);
+  await saveRec(); await savePlans(); await saveProducts();
   toast('Resep dihapus');
   renderAll();
 }
 function openBreakdown(id){
   const r=recipes.find(x=>x.id===id);
   if(!r) return;
+  currentBreakdownRecipeId=id;
   const c=recipeCost(r);
   document.getElementById('break-title').textContent='Rincian — '+r.name;
   const ingRows=(r.items||[]).map(raw=>{
@@ -1559,6 +1762,113 @@ function openBreakdown(id){
       ${sellRows}
     </div>`;
   openModal('ov-break');
+}
+
+/* ================= PDF EXPORT ================= */
+function pdfHeaderHtml(title,subtitle){
+  return `
+    <div style="display:flex;align-items:center;gap:14px;border-bottom:3px solid #c81e2c;padding-bottom:14px;margin-bottom:18px;">
+      <img src="assets/logo.png" style="width:56px;height:56px;object-fit:contain;">
+      <div style="flex:1;">
+        <div style="font-family:'Poppins',sans-serif;font-weight:800;font-size:20px;letter-spacing:.5px;color:#a3141f;">THE BIG GUYS</div>
+        <div style="font-family:'Poppins',sans-serif;font-weight:600;font-size:13px;color:#333;margin-top:2px;">${esc(title)}</div>
+      </div>
+      <div style="text-align:right;font-family:'Inter',sans-serif;font-size:10.5px;color:#777;">
+        <div>${esc(subtitle||'')}</div>
+        <div>${new Date().toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'})}</div>
+      </div>
+    </div>`;
+}
+function pdfFooterHtml(){
+  return `<div style="margin-top:22px;padding-top:10px;border-top:1px solid #e5ded3;font-family:'Inter',sans-serif;font-size:9.5px;color:#999;text-align:center;">
+    Dibuat otomatis oleh sistem kalkulasi resep THE BIG GUYS — Bisnis Berkah Ber-4! Bismillah
+  </div>`;
+}
+function pdfSectionTitle(t){
+  return `<div style="font-family:'Poppins',sans-serif;font-weight:700;font-size:12.5px;color:#a3141f;text-transform:uppercase;letter-spacing:.4px;margin:16px 0 8px;">${esc(t)}</div>`;
+}
+function pdfRowHtml(label,value,sub,strong){
+  return `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:6px 10px;border-bottom:1px solid #f0ebe1;font-family:'Inter',sans-serif;">
+    <span style="font-size:11.5px;color:#333;${strong?'font-weight:700;':''}">${esc(label)}${sub?` <span style="font-size:10px;color:#999;">${esc(sub)}</span>`:''}</span>
+    <span style="font-size:11.5px;color:#111;${strong?'font-weight:700;':''}">${esc(value)}</span>
+  </div>`;
+}
+function buildRecipePdfHtml(r){
+  const c=recipeCost(r);
+  const compRows=(r.items||[]).map(raw=>{
+    const it=normalizeItem(raw);
+    if(it.refType==='recipe'){
+      const sub=recipes.find(x=>x.id===it.refId);
+      if(!sub) return '';
+      return pdfRowHtml(sub.name+' (sub-resep)',fmtRp(getRefCost(it,r.id)),it.qty+' '+(sub.yieldUnit||'unit'));
+    }
+    const ing=ingredients.find(i=>i.id===it.refId);
+    if(!ing) return '';
+    return pdfRowHtml(ing.name,fmtRp(effectivePrice(ing)*it.qty),it.qty+' '+ing.unit+(ing.waste?' • susut '+ing.waste+'%':''));
+  }).join('');
+  let sellHtml='';
+  if(r.sellPrice){
+    sellHtml=pdfRowHtml('Harga Jual',fmtRp(r.sellPrice))
+      +pdfRowHtml('Profit / Unit',fmtRp(c.profit))
+      +pdfRowHtml('Margin',c.margin.toFixed(1)+'%',null,true);
+  }
+  return `<div style="width:560px;background:#fff;padding:26px;font-family:'Inter',sans-serif;color:#111;">
+    ${pdfHeaderHtml('Rincian Resep — '+r.name, r.category||'')}
+    <div style="display:flex;gap:16px;margin-bottom:6px;">
+      <div style="flex:1;background:#f6f3ee;border-radius:10px;padding:10px 14px;">
+        <div style="font-size:10px;color:#888;">Hasil</div>
+        <div style="font-size:14px;font-weight:700;">${fmtNum(r.yieldQty)} ${esc(r.yieldUnit||'unit')}</div>
+      </div>
+      <div style="flex:1;background:#f6f3ee;border-radius:10px;padding:10px 14px;">
+        <div style="font-size:10px;color:#888;">Waktu Prep</div>
+        <div style="font-size:14px;font-weight:700;">${r.prepMinutes||0} menit</div>
+      </div>
+      <div style="flex:1;background:#c81e2c;border-radius:10px;padding:10px 14px;">
+        <div style="font-size:10px;color:#f6d8da;">HPP / Unit</div>
+        <div style="font-size:14px;font-weight:700;color:#fff;">${fmtRp(c.perUnit)}</div>
+      </div>
+    </div>
+    ${pdfSectionTitle('Komposisi Bahan')}
+    <div style="border:1px solid #f0ebe1;border-radius:8px;overflow:hidden;">${compRows||pdfRowHtml('Tidak ada bahan','')}</div>
+    ${pdfSectionTitle('Rincian Biaya')}
+    <div style="border:1px solid #f0ebe1;border-radius:8px;overflow:hidden;">
+      ${pdfRowHtml('Total Biaya Bahan',fmtRp(c.ingCost))}
+      ${pdfRowHtml('Biaya Tenaga Kerja',fmtRp(c.laborCost),c.prepMinutes+' mnt × '+fmtRp(settings.hourlyRate||0)+'/jam')}
+      ${c.autoOverhead>0?pdfRowHtml('Overhead Otomatis',fmtRp(c.autoOverhead),settings.overheadPct+'% dari bahan'):''}
+      ${pdfRowHtml('Biaya Lain-lain',fmtRp(c.manualOverhead))}
+      ${pdfRowHtml('TOTAL HPP',fmtRp(c.total),null,true)}
+      ${sellHtml}
+    </div>
+    ${pdfFooterHtml()}
+  </div>`;
+}
+async function renderPdfFromHtml(html,filename,buttonId){
+  const btn=buttonId?document.getElementById(buttonId):null;
+  const originalLabel=btn?btn.textContent:null;
+  if(btn){ btn.disabled=true; btn.textContent='Membuat PDF...'; }
+  const container=document.createElement('div');
+  container.style.cssText='position:fixed;left:-10000px;top:0;';
+  container.innerHTML=html;
+  document.body.appendChild(container);
+  try{
+    await window.html2pdf().set({
+      margin:0,
+      filename,
+      image:{type:'jpeg',quality:0.95},
+      html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff'},
+      jsPDF:{unit:'pt',format:'a4',orientation:'portrait'}
+    }).from(container.firstElementChild).save();
+  }catch(e){
+    toast('Gagal membuat PDF');
+  }finally{
+    document.body.removeChild(container);
+    if(btn){ btn.disabled=false; btn.textContent=originalLabel; }
+  }
+}
+function exportRecipePDF(id){
+  const r=recipes.find(x=>x.id===id);
+  if(!r) return;
+  renderPdfFromHtml(buildRecipePdfHtml(r),'resep-'+r.name.replace(/\s+/g,'-')+'.pdf','break-pdf-btn');
 }
 
 /* ================= BATCH ================= */
@@ -1621,6 +1931,54 @@ function renderBatch(){
     <div class="tbl-wrap"><table><thead><tr><th>Bahan</th><th class="num">Jumlah</th><th class="num">Biaya</th></tr></thead><tbody>${shopRows}</tbody></table></div>`;
 
   box.innerHTML=stats+comp+shop;
+}
+function buildBatchPdfHtml(rec,mult,sell){
+  const c=recipeCost(rec);
+  const totalCost=c.total*mult, totalYield=rec.yieldQty*mult;
+  const revenue=sell*totalYield, profit=revenue-totalCost;
+  const marginPct=revenue?(profit/revenue)*100:null;
+  const shopAgg=collectBaseIngredients(rec,mult);
+  const shopRows=Object.values(shopAgg).map(x=>pdfRowHtml(x.ing.name,fmtRp(x.qty*effectivePrice(x.ing)),fmtNum(x.qty)+' '+x.ing.unit)).join('');
+  return `<div style="width:560px;background:#fff;padding:26px;font-family:'Inter',sans-serif;color:#111;">
+    ${pdfHeaderHtml('Kalkulator Batch — '+rec.name,'×'+mult+' batch')}
+    <div style="display:flex;gap:16px;margin-bottom:6px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:110px;background:#f6f3ee;border-radius:10px;padding:10px 14px;">
+        <div style="font-size:10px;color:#888;">Total Hasil</div>
+        <div style="font-size:14px;font-weight:700;">${fmtNum(totalYield)} ${esc(rec.yieldUnit||'')}</div>
+      </div>
+      <div style="flex:1;min-width:110px;background:#f6f3ee;border-radius:10px;padding:10px 14px;">
+        <div style="font-size:10px;color:#888;">Total Modal</div>
+        <div style="font-size:14px;font-weight:700;">${fmtRp(totalCost)}</div>
+      </div>
+      <div style="flex:1;min-width:110px;background:#c81e2c;border-radius:10px;padding:10px 14px;">
+        <div style="font-size:10px;color:#f6d8da;">HPP / ${esc(rec.yieldUnit||'unit')}</div>
+        <div style="font-size:14px;font-weight:700;color:#fff;">${fmtRp(c.perUnit)}</div>
+      </div>
+      ${sell>0?`<div style="flex:1;min-width:110px;background:#f6f3ee;border-radius:10px;padding:10px 14px;">
+        <div style="font-size:10px;color:#888;">Profit &amp; Margin</div>
+        <div style="font-size:14px;font-weight:700;color:${profit>=0?'#1a7a3c':'#a3141f'};">${fmtRp(profit)}</div>
+        <div style="font-size:9.5px;color:#999;">margin ${marginPct.toFixed(1)}% • omzet ${fmtRp(revenue)}</div>
+      </div>`:''}
+    </div>
+    ${pdfSectionTitle('Komponen Biaya (×'+mult+')')}
+    <div style="border:1px solid #f0ebe1;border-radius:8px;overflow:hidden;">
+      ${pdfRowHtml('Biaya Bahan',fmtRp(c.ingCost*mult))}
+      ${pdfRowHtml('Biaya Tenaga Kerja',fmtRp(c.laborCost*mult),c.prepMinutes+' mnt/batch × '+fmtRp(settings.hourlyRate||0)+'/jam')}
+      ${c.autoOverhead>0?pdfRowHtml('Overhead Otomatis',fmtRp(c.autoOverhead*mult),settings.overheadPct+'% dari bahan'):''}
+      ${pdfRowHtml('Biaya Lain-lain',fmtRp(c.manualOverhead*mult))}
+      ${pdfRowHtml('TOTAL',fmtRp(totalCost),null,true)}
+    </div>
+    ${pdfSectionTitle('Daftar Belanja')}
+    <div style="border:1px solid #f0ebe1;border-radius:8px;overflow:hidden;">${shopRows||pdfRowHtml('Tidak ada bahan','')}</div>
+    ${pdfFooterHtml()}
+  </div>`;
+}
+function exportBatchPDF(){
+  const rec=recipes.find(r=>r.id===document.getElementById('batch-recipe').value);
+  if(!rec){ toast('Pilih resep dulu'); return; }
+  const mult=parseFloat(document.getElementById('batch-mult').value)||1;
+  const sell=parseFloat(document.getElementById('batch-sell').value)||rec.sellPrice||0;
+  renderPdfFromHtml(buildBatchPdfHtml(rec,mult,sell),'batch-'+rec.name.replace(/\s+/g,'-')+'.pdf','batch-pdf-btn');
 }
 
 /* ================= PLANS ================= */
@@ -1766,16 +2124,6 @@ function exportRecipesCSV(){
     rows.push([r.name,r.category||'',r.yieldQty,r.yieldUnit||'',r.prepMinutes||0,Math.round(c.ingCost),Math.round(c.laborCost),Math.round(c.overheadCost),Math.round(c.total),Math.round(c.perUnit),r.sellPrice||'',c.margin!==null?c.margin.toFixed(1):'']);
   });
   downloadCSV('rekap-resep.csv',rows);
-}
-function exportBatchCSV(){
-  const rec=recipes.find(r=>r.id===document.getElementById('batch-recipe').value);
-  if(!rec){ toast('Pilih resep dulu'); return; }
-  const mult=parseFloat(document.getElementById('batch-mult').value)||1;
-  const rows=[['Bahan','Jumlah','Satuan','Biaya']];
-  Object.values(collectBaseIngredients(rec, mult)).forEach(x=>{
-    rows.push([x.ing.name,Math.round(x.qty*100)/100,x.ing.unit,Math.round(x.qty*effectivePrice(x.ing))]);
-  });
-  downloadCSV('belanja-'+rec.name.replace(/\s+/g,'-')+'.csv',rows);
 }
 function exportPlanCSV(){
   const p=activePlan();
