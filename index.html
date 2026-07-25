@@ -1272,11 +1272,11 @@ function openRecipeForm(id){
     document.getElementById('rec-target-margin').value=settings.targetMargin||'';
     currentItems=[];
   }
-  if(!currentItems.length) currentItems.push({refType:'ingredient',refId:ingredients[0].id,qty:0});
+  if(!currentItems.length) currentItems.push({refType:'ingredient',refId:null,qty:0});
   renderItemRows();
   openModal('ov-rec');
 }
-function addItemRow(){ currentItems.push({refType:'ingredient',refId:ingredients[0].id,qty:0}); renderItemRows(); }
+function addItemRow(){ currentItems.push({refType:'ingredient',refId:null,qty:0}); renderItemRows(); }
 function removeItemRow(idx){ currentItems.splice(idx,1); renderItemRows(); }
 // A row can match either a raw ingredient or another recipe (used as a sub-component).
 // Recipes used as candidates exclude the recipe currently being edited and anything that
