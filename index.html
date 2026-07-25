@@ -211,6 +211,11 @@ input[type="text"],input[type="number"],input[type="search"],input[type="email"]
 .item-row select,.item-row input[type="text"]{min-width:0;}
 .item-row .sub{font-size:12.5px;font-weight:600;text-align:right;color:var(--g600);}
 .item-row .rm{background:var(--red-light);color:var(--red-dark);border:none;border-radius:7px;width:32px;height:32px;font-size:14px;}
+.ac-wrap{position:relative;flex:1;min-width:0;}
+.ac-dropdown{display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:var(--shadow);z-index:50;max-height:220px;overflow-y:auto;}
+.ac-dropdown.show{display:block;}
+.ac-option{padding:9px 12px;font-size:13px;cursor:pointer;}
+.ac-option:hover,.ac-option.active{background:var(--g100);}
 @media (max-width:560px){.item-row{grid-template-columns:1fr 70px 28px;}.item-row .sub{display:none;}}
 
 /* ================= BREAKDOWN BLOCKS ================= */
@@ -649,7 +654,6 @@ input[type="text"],input[type="number"],input[type="search"],input[type="email"]
 </div>
 <datalist id="dl-ingcats"></datalist>
 <datalist id="dl-reccats"></datalist>
-<datalist id="dl-ing-names"></datalist>
 <div class="toast" id="toast">
   <svg viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></svg>
   <span id="toast-msg"></span>
@@ -1296,6 +1300,58 @@ function resolveRefByName(name){
   }
   return null;
 }
+// Candidate pool for the composition autocomplete: ingredients + recipes, excluding the recipe
+// currently being edited and any recipe that would create a reference cycle if picked.
+function acCandidates(){
+  return [
+    ...ingredients.map(i=>({label:i.name,refType:'ingredient',refId:i.id})),
+    ...recipes.filter(r=>r.id!==currentEditingRecipeId && !(currentEditingRecipeId && recipeUsesRecipe(r,currentEditingRecipeId)))
+      .map(r=>({label:r.name,refType:'recipe',refId:r.id}))
+  ];
+}
+let acMatches={}, acHighlight={};
+function showAcDropdown(idx,query){
+  const dd=document.getElementById('item-ac-'+idx);
+  if(!dd) return;
+  const q=query.trim().toLowerCase();
+  if(q.length<2){ hideAcDropdown(idx); return; }
+  const matches=acCandidates().filter(c=>c.label.toLowerCase().includes(q)).slice(0,5);
+  acMatches[idx]=matches;
+  acHighlight[idx]=null;
+  if(!matches.length){ hideAcDropdown(idx); return; }
+  dd.innerHTML=matches.map((m,pos)=>`<div class="ac-option" onmousedown="pickAcOption(${idx},${pos})">${esc(m.label)}${m.refType==='recipe'?' <span class="chip" style="margin-left:6px;">Resep</span>':''}</div>`).join('');
+  dd.classList.add('show');
+}
+function hideAcDropdown(idx){
+  const dd=document.getElementById('item-ac-'+idx);
+  if(dd){ dd.classList.remove('show'); dd.innerHTML=''; }
+  delete acMatches[idx]; delete acHighlight[idx];
+}
+function pickAcOption(idx,pos){
+  const m=(acMatches[idx]||[])[pos];
+  if(!m) return;
+  currentItems[idx].refType=m.refType;
+  currentItems[idx].refId=m.refId;
+  const input=document.getElementById('item-name-'+idx);
+  if(input) input.value=m.label;
+  hideAcDropdown(idx);
+  updateRowSub(idx);
+  updateBreakdownDisplay();
+}
+function renderAcHighlight(idx){
+  const dd=document.getElementById('item-ac-'+idx);
+  if(!dd) return;
+  [...dd.children].forEach((el,pos)=>el.classList.toggle('active',pos===acHighlight[idx]));
+}
+function onNameKeydown(idx,e){
+  const dd=document.getElementById('item-ac-'+idx);
+  if(!dd||!dd.classList.contains('show')) return;
+  const matches=acMatches[idx]||[];
+  if(e.key==='ArrowDown'){ e.preventDefault(); acHighlight[idx]=Math.min((acHighlight[idx]??-1)+1,matches.length-1); renderAcHighlight(idx); }
+  else if(e.key==='ArrowUp'){ e.preventDefault(); acHighlight[idx]=Math.max((acHighlight[idx]??0)-1,0); renderAcHighlight(idx); }
+  else if(e.key==='Enter'){ if(acHighlight[idx]!=null){ e.preventDefault(); pickAcOption(idx,acHighlight[idx]); } }
+  else if(e.key==='Escape'){ hideAcDropdown(idx); }
+}
 function getRefCost(it, seenBaseId){
   seenBaseId = seenBaseId!==undefined ? seenBaseId : currentEditingRecipeId;
   if(it.refType==='recipe'){
@@ -1315,6 +1371,7 @@ function onIngredientNameInput(idx,name){
   currentItems[idx].refId=match?match.refId:null;
   updateRowSub(idx);
   updateBreakdownDisplay();
+  showAcDropdown(idx,name);
 }
 function onQtyInput(idx,val){
   currentItems[idx].qty=parseFloat(val)||0;
@@ -1348,7 +1405,14 @@ function renderItemRows(){
     const sub=getRefCost(it);
     return `<div class="item-row">
       <div style="display:flex;gap:6px;align-items:center;min-width:0;">
-        <input type="text" list="dl-ing-names" value="${esc(getRefName(it))}" placeholder="Cari bahan atau resep..." style="flex:1;min-width:0;" oninput="onIngredientNameInput(${idx},this.value)">
+        <div class="ac-wrap">
+          <input type="text" id="item-name-${idx}" value="${esc(getRefName(it))}" placeholder="Cari bahan atau resep..." autocomplete="off"
+            oninput="onIngredientNameInput(${idx},this.value)"
+            onfocus="showAcDropdown(${idx},this.value)"
+            onkeydown="onNameKeydown(${idx},event)"
+            onblur="setTimeout(()=>hideAcDropdown(${idx}),150)">
+          <div class="ac-dropdown" id="item-ac-${idx}"></div>
+        </div>
         <span class="chip" id="item-badge-${idx}" style="flex-shrink:0;${it.refType==='recipe'?'':'display:none;'}">Resep</span>
       </div>
       <input type="number" value="${it.qty}" placeholder="jumlah" oninput="onQtyInput(${idx},this.value)">
@@ -1356,8 +1420,6 @@ function renderItemRows(){
       <button class="rm" onclick="removeItemRow(${idx})">✕</button>
     </div>`;
   }).join('');
-  const recipeOptions=recipes.filter(r=>r.id!==currentEditingRecipeId).map(r=>`<option value="${esc(r.name)}">`).join('');
-  document.getElementById('dl-ing-names').innerHTML=ingredients.map(i=>`<option value="${esc(i.name)}">`).join('')+recipeOptions;
   updateBreakdownDisplay();
 }
 function updateBreakdownDisplay(){
