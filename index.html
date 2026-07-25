@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>THE BIG GUYS — Recipe Costing</title>
 <meta name="description" content="Kalkulator HPP, resep, batch produksi, dan rencana produksi untuk THE BIG GUYS.">
 <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
@@ -14,7 +14,7 @@
 <style>
 /* ================= RESET & TOKENS ================= */
 *,*::before,*::after{box-sizing:border-box;}
-html,body{margin:0;padding:0;}
+html,body{margin:0;padding:0;overflow-x:hidden;max-width:100%;}
 body{
   font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
   background:var(--bg);
@@ -327,16 +327,18 @@ input[type="text"],input[type="number"],input[type="search"],input[type="email"]
 .bottom-nav{display:none;}
 @media (max-width:760px){
   .sidebar{display:none;}
-  .main{padding:18px 14px 90px;}
+  .main{padding:18px 14px calc(96px + env(safe-area-inset-bottom));}
   .bottom-nav{
     display:flex;flex-direction:row;position:fixed;bottom:0;left:0;right:0;background:var(--surface);
-    border-top:1px solid var(--border);z-index:90;padding:6px 4px calc(env(safe-area-inset-bottom) + 6px);
+    border-top:1px solid var(--border);z-index:90;padding:10px 4px calc(env(safe-area-inset-bottom) + 14px);
     justify-content:space-between;overflow:visible;
   }
-  .bottom-nav .nav-btn{flex:1;flex-direction:column;gap:2px;font-size:10px;padding:7px 2px;border-radius:9px;text-align:center;justify-content:center;white-space:nowrap;}
+  .bottom-nav .nav-btn{flex:1;flex-direction:column;gap:3px;font-size:10px;padding:9px 2px;border-radius:9px;text-align:center;justify-content:center;white-space:nowrap;}
   .stat-grid{grid-template-columns:1fr 1fr;}
-  .toast{bottom:calc(56px + env(safe-area-inset-bottom));}
+  .toast{bottom:calc(70px + env(safe-area-inset-bottom));}
   .form-grid,.form-grid.c3{grid-template-columns:1fr;}
+  .card table{font-size:12px;}
+  .card thead th,.card tbody td{padding:8px 6px;}
 }
 
 /* ================= PRINT ================= */
@@ -386,11 +388,11 @@ input[type="text"],input[type="number"],input[type="search"],input[type="email"]
       <div class="grid-2">
         <div class="card">
           <div class="section-title">Margin Tertinggi</div>
-          <div id="dash-top-margin"></div>
+          <div id="dash-top-margin" style="overflow-x:auto;"></div>
         </div>
         <div class="card">
           <div class="section-title">Perubahan Harga Terbaru</div>
-          <div id="dash-price-moves"></div>
+          <div id="dash-price-moves" style="overflow-x:auto;"></div>
         </div>
       </div>
       <div class="card" style="margin-top:20px;">
@@ -398,7 +400,7 @@ input[type="text"],input[type="number"],input[type="search"],input[type="email"]
           <span>Produk Jual</span>
           <button class="act" onclick="goPage('products')">Lihat semua</button>
         </div>
-        <div id="dash-products"></div>
+        <div id="dash-products" style="overflow-x:auto;"></div>
       </div>
     </section>
 
