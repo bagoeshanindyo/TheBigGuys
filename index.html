@@ -414,7 +414,7 @@ input[type="text"],input[type="number"],input[type="search"],input[type="email"]
       <div id="prod-empty"></div>
       <div class="tbl-wrap">
         <table>
-          <thead><tr><th></th><th>Produk</th><th class="num">HPP</th><th class="num">Harga Jual</th><th style="text-align:center;">Margin</th><th></th></tr></thead>
+          <thead><tr><th></th><th>Produk</th><th class="num">HPP</th><th class="num">Harga Jual</th><th class="num">Profit</th><th style="text-align:center;">Margin</th><th></th></tr></thead>
           <tbody id="prod-tbody"></tbody>
         </table>
       </div>
@@ -1196,6 +1196,7 @@ function renderProducts(){
   const thumb=p=>p.photo
     ? `<img src="${p.photo}" alt="" style="width:44px;height:44px;border-radius:8px;object-fit:cover;">`
     : `<div style="width:44px;height:44px;border-radius:8px;background:var(--g100);display:flex;align-items:center;justify-content:center;color:var(--g400);">${ICONS.box}</div>`;
+  const profitHtml=c=>(c&&c.profit!==null)?`<span style="color:${c.profit>=0?'var(--green)':'var(--red-dark)'};">${fmtRp(c.profit)}</span>`:'-';
   tbody.innerHTML=rows.map(({p,rec,c})=>`
     <tr>
       <td>${thumb(p)}</td>
@@ -1205,6 +1206,7 @@ function renderProducts(){
       </td>
       <td class="num">${c?fmtRp(c.perUnit):'-'}</td>
       <td class="num">${rec&&rec.sellPrice?fmtRp(rec.sellPrice):'-'}</td>
+      <td class="num">${profitHtml(c)}</td>
       <td style="text-align:center;">${c?marginBadge(c.margin):'<span class="badge gray">-</span>'}</td>
       <td><div class="row-actions">
         <button class="act" onclick="openProductForm('${p.id}')">Edit</button>
@@ -1222,6 +1224,7 @@ function renderProducts(){
       </div>
       <div class="kv"><span>HPP / unit</span><b>${c?fmtRp(c.perUnit):'-'}</b></div>
       <div class="kv"><span>Harga jual</span><b>${rec&&rec.sellPrice?fmtRp(rec.sellPrice):'-'}</b></div>
+      <div class="kv"><span>Profit / unit</span><b>${profitHtml(c)}</b></div>
       <div class="row-actions">
         <button class="act" onclick="openProductForm('${p.id}')">Edit</button>
         <button class="act danger" onclick="removeProduct('${p.id}')">Hapus</button>
