@@ -1888,6 +1888,23 @@ function pdfRowHtml(label,value,sub,strong){
     <span style="font-size:11.5px;color:#111;${strong?'font-weight:700;':''}">${esc(value)}</span>
   </div>`;
 }
+// Row layout for ingredient/quantity lists (composition, shopping list, marketlist):
+// label left, quantity centered in its own column at full text color for readability,
+// price right — instead of a small dim sub-label crowded next to the name.
+function pdfQtyHeaderHtml(){
+  return `<div style="display:flex;gap:8px;padding:0 10px 4px;font-family:'Inter',sans-serif;">
+    <span style="flex:2;min-width:0;font-size:9px;color:#999;text-transform:uppercase;letter-spacing:.4px;">Bahan</span>
+    <span style="flex:1;text-align:center;font-size:9px;color:#999;text-transform:uppercase;letter-spacing:.4px;">Jumlah</span>
+    <span style="flex:1;text-align:right;font-size:9px;color:#999;text-transform:uppercase;letter-spacing:.4px;">Biaya</span>
+  </div>`;
+}
+function pdfQtyRowHtml(label,qty,value,note){
+  return `<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid #f0ebe1;font-family:'Inter',sans-serif;">
+    <span style="flex:2;min-width:0;font-size:11.5px;color:#333;">${esc(label)}</span>
+    <span style="flex:1;text-align:center;font-size:11.5px;color:#333;">${esc(qty)}${note?` <span style="font-size:9.5px;color:#999;">${esc(note)}</span>`:''}</span>
+    <span style="flex:1;text-align:right;font-size:11.5px;color:#111;">${esc(value)}</span>
+  </div>`;
+}
 function buildRecipePdfHtml(r){
   const c=recipeCost(r);
   const compRows=(r.items||[]).map(raw=>{
@@ -1895,11 +1912,11 @@ function buildRecipePdfHtml(r){
     if(it.refType==='recipe'){
       const sub=recipes.find(x=>x.id===it.refId);
       if(!sub) return '';
-      return pdfRowHtml(sub.name+' (sub-resep)',fmtRp(getRefCost(it,r.id)),it.qty+' '+(sub.yieldUnit||'unit'));
+      return pdfQtyRowHtml(sub.name+' (sub-resep)',it.qty+' '+(sub.yieldUnit||'unit'),fmtRp(getRefCost(it,r.id)));
     }
     const ing=ingredients.find(i=>i.id===it.refId);
     if(!ing) return '';
-    return pdfRowHtml(ing.name,fmtRp(effectivePrice(ing)*it.qty),it.qty+' '+ing.unit+(ing.waste?' • susut '+ing.waste+'%':''));
+    return pdfQtyRowHtml(ing.name,it.qty+' '+ing.unit,fmtRp(effectivePrice(ing)*it.qty),ing.waste?'susut '+ing.waste+'%':null);
   }).join('');
   let sellHtml='';
   if(r.sellPrice){
@@ -1930,6 +1947,7 @@ function buildRecipePdfHtml(r){
       </div>
     </div>
     ${pdfSectionTitle('Komposisi Bahan')}
+    ${compRows?pdfQtyHeaderHtml():''}
     <div style="border:1px solid #f0ebe1;border-radius:8px;overflow:hidden;">${compRows||pdfRowHtml('Tidak ada bahan','')}</div>
     ${stepsHtml}
     ${pdfSectionTitle('Rincian Biaya')}
@@ -2040,7 +2058,7 @@ function buildBatchPdfHtml(rec,mult,sell){
   const revenue=sell*totalYield, profit=revenue-totalCost;
   const marginPct=revenue?(profit/revenue)*100:null;
   const shopAgg=collectBaseIngredients(rec,mult);
-  const shopRows=Object.values(shopAgg).map(x=>pdfRowHtml(x.ing.name,fmtRp(x.qty*effectivePrice(x.ing)),fmtNum(x.qty)+' '+x.ing.unit)).join('');
+  const shopRows=Object.values(shopAgg).map(x=>pdfQtyRowHtml(x.ing.name,fmtNum(x.qty)+' '+x.ing.unit,fmtRp(x.qty*effectivePrice(x.ing)))).join('');
   return `<div style="width:794px;background:#fff;padding:36px;font-family:'Inter',sans-serif;color:#111;">
     ${pdfHeaderHtml('Kalkulator Batch — '+rec.name,'×'+mult+' batch')}
     <div style="display:flex;gap:16px;margin-bottom:6px;flex-wrap:wrap;">
@@ -2071,6 +2089,7 @@ function buildBatchPdfHtml(rec,mult,sell){
       ${pdfRowHtml('TOTAL',fmtRp(totalCost),null,true)}
     </div>
     ${pdfSectionTitle('Daftar Belanja')}
+    ${shopRows?pdfQtyHeaderHtml():''}
     <div style="border:1px solid #f0ebe1;border-radius:8px;overflow:hidden;">${shopRows||pdfRowHtml('Tidak ada bahan','')}</div>
     ${pdfFooterHtml()}
   </div>`;
@@ -2086,7 +2105,7 @@ function exportBatchPDF(){
 /* ================= PLANS ================= */
 function buildPlanPdfHtml(p,a){
   const bdRows=a.breakdown.map(b=>pdfRowHtml(b.name,fmtRp(b.cost),fmtNum(b.qty)+' '+b.unit+' • bahan '+fmtRp(b.ing)+' • TK '+fmtRp(b.lab)+' • lain '+fmtRp(b.ov))).join('');
-  const marketRows=Object.values(a.agg).map(x=>pdfRowHtml(x.ing.name,fmtRp(x.qty*effectivePrice(x.ing)),fmtNum(x.qty)+' '+x.ing.unit)).join('');
+  const marketRows=Object.values(a.agg).map(x=>pdfQtyRowHtml(x.ing.name,fmtNum(x.qty)+' '+x.ing.unit,fmtRp(x.qty*effectivePrice(x.ing)))).join('');
   return `<div style="width:794px;background:#fff;padding:36px;font-family:'Inter',sans-serif;color:#111;">
     ${pdfHeaderHtml('Rencana Produksi — '+p.name,(p.items||[]).length+' resep')}
     <div style="display:flex;gap:16px;margin-bottom:6px;flex-wrap:wrap;">
@@ -2110,6 +2129,7 @@ function buildPlanPdfHtml(p,a){
     ${pdfSectionTitle('Rincian per Resep')}
     <div style="border:1px solid #f0ebe1;border-radius:8px;overflow:hidden;">${bdRows||pdfRowHtml('Belum ada resep di rencana ini','')}</div>
     ${pdfSectionTitle('Marketlist Gabungan')}
+    ${marketRows?pdfQtyHeaderHtml():''}
     <div style="border:1px solid #f0ebe1;border-radius:8px;overflow:hidden;">${marketRows||pdfRowHtml('Tidak ada bahan','')}</div>
     ${pdfFooterHtml()}
   </div>`;
