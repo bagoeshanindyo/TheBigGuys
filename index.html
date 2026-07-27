@@ -490,7 +490,7 @@ input[type="text"],input[type="number"],input[type="search"],input[type="email"]
       <div class="page-head">
         <div><h2>Rencana Produksi</h2><p class="page-sub">Gabungkan beberapa resep untuk marketlist bersama.</p></div>
         <div class="page-actions">
-          <button class="btn btn-ghost btn-sm" onclick="exportPlanCSV()">Ekspor Marketlist</button>
+          <button class="btn btn-ghost btn-sm" id="plan-pdf-btn" onclick="exportPlanPDF()">Ekspor PDF</button>
           <button class="btn btn-red btn-sm" onclick="createPlan()">+ Rencana Baru</button>
         </div>
       </div>
@@ -676,6 +676,12 @@ input[type="text"],input[type="number"],input[type="search"],input[type="email"]
       <div class="section-title" style="margin-top:0;">Komposisi Bahan</div>
       <div id="rec-items"></div>
       <button class="btn btn-ghost btn-sm" onclick="addItemRow()">+ Tambah Bahan</button>
+
+      <div class="divider"></div>
+      <div class="section-title" style="margin-top:0;">Langkah Pembuatan</div>
+      <div class="field">
+        <textarea id="rec-steps" rows="5" placeholder="Opsional. Tulis satu langkah per baris, mis.:&#10;Campur semua bahan kering&#10;Aduk rata dengan bahan basah&#10;Masak dengan api sedang 10 menit"></textarea>
+      </div>
 
       <div class="divider"></div>
       <div class="section-title" style="margin-top:0;">Rincian Biaya</div>
@@ -1517,6 +1523,7 @@ function openRecipeForm(id){
     document.getElementById('rec-overhead-enabled').checked=r.overheadEnabled!==false;
     document.getElementById('rec-sell').value=r.sellPrice||'';
     document.getElementById('rec-target-margin').value='';
+    document.getElementById('rec-steps').value=r.steps||'';
     currentItems=(r.items||[]).map(it=>({...normalizeItem(it)}));
   }else{
     document.getElementById('rec-title').textContent='Tambah Resep';
@@ -1529,6 +1536,7 @@ function openRecipeForm(id){
     document.getElementById('rec-overhead-enabled').checked=true;
     document.getElementById('rec-sell').value='';
     document.getElementById('rec-target-margin').value=settings.targetMargin||'';
+    document.getElementById('rec-steps').value='';
     currentItems=[];
   }
   if(!currentItems.length) currentItems.push({refType:'ingredient',refId:null,qty:0});
@@ -1777,6 +1785,7 @@ async function saveRecipe(){
     overhead:parseFloat(document.getElementById('rec-overhead').value)||0,
     overheadEnabled:document.getElementById('rec-overhead-enabled').checked,
     sellPrice:parseFloat(document.getElementById('rec-sell').value)||0,
+    steps:document.getElementById('rec-steps').value.trim(),
     items
   };
   if(id){
@@ -1898,7 +1907,13 @@ function buildRecipePdfHtml(r){
       +pdfRowHtml('Profit / Unit',fmtRp(c.profit))
       +pdfRowHtml('Margin',c.margin.toFixed(1)+'%',null,true);
   }
-  return `<div style="width:560px;background:#fff;padding:26px;font-family:'Inter',sans-serif;color:#111;">
+  const stepLines=(r.steps||'').split('\n').map(s=>s.trim()).filter(Boolean);
+  const stepsHtml=stepLines.length?`
+    ${pdfSectionTitle('Langkah Pembuatan')}
+    <ol style="margin:0;padding:0 0 0 20px;font-family:'Inter',sans-serif;">
+      ${stepLines.map(s=>`<li style="font-size:11.5px;color:#333;padding:4px 0;line-height:1.5;">${esc(s)}</li>`).join('')}
+    </ol>`:'';
+  return `<div style="width:794px;background:#fff;padding:36px;font-family:'Inter',sans-serif;color:#111;">
     ${pdfHeaderHtml('Rincian Resep — '+r.name, r.category||'')}
     <div style="display:flex;gap:16px;margin-bottom:6px;">
       <div style="flex:1;background:#f6f3ee;border-radius:10px;padding:10px 14px;">
@@ -1916,6 +1931,7 @@ function buildRecipePdfHtml(r){
     </div>
     ${pdfSectionTitle('Komposisi Bahan')}
     <div style="border:1px solid #f0ebe1;border-radius:8px;overflow:hidden;">${compRows||pdfRowHtml('Tidak ada bahan','')}</div>
+    ${stepsHtml}
     ${pdfSectionTitle('Rincian Biaya')}
     <div style="border:1px solid #f0ebe1;border-radius:8px;overflow:hidden;">
       ${pdfRowHtml('Total Biaya Bahan',fmtRp(c.ingCost))}
@@ -2025,7 +2041,7 @@ function buildBatchPdfHtml(rec,mult,sell){
   const marginPct=revenue?(profit/revenue)*100:null;
   const shopAgg=collectBaseIngredients(rec,mult);
   const shopRows=Object.values(shopAgg).map(x=>pdfRowHtml(x.ing.name,fmtRp(x.qty*effectivePrice(x.ing)),fmtNum(x.qty)+' '+x.ing.unit)).join('');
-  return `<div style="width:560px;background:#fff;padding:26px;font-family:'Inter',sans-serif;color:#111;">
+  return `<div style="width:794px;background:#fff;padding:36px;font-family:'Inter',sans-serif;color:#111;">
     ${pdfHeaderHtml('Kalkulator Batch — '+rec.name,'×'+mult+' batch')}
     <div style="display:flex;gap:16px;margin-bottom:6px;flex-wrap:wrap;">
       <div style="flex:1;min-width:110px;background:#f6f3ee;border-radius:10px;padding:10px 14px;">
@@ -2068,6 +2084,42 @@ function exportBatchPDF(){
 }
 
 /* ================= PLANS ================= */
+function buildPlanPdfHtml(p,a){
+  const bdRows=a.breakdown.map(b=>pdfRowHtml(b.name,fmtRp(b.cost),fmtNum(b.qty)+' '+b.unit+' • bahan '+fmtRp(b.ing)+' • TK '+fmtRp(b.lab)+' • lain '+fmtRp(b.ov))).join('');
+  const marketRows=Object.values(a.agg).map(x=>pdfRowHtml(x.ing.name,fmtRp(x.qty*effectivePrice(x.ing)),fmtNum(x.qty)+' '+x.ing.unit)).join('');
+  return `<div style="width:794px;background:#fff;padding:36px;font-family:'Inter',sans-serif;color:#111;">
+    ${pdfHeaderHtml('Rencana Produksi — '+p.name,(p.items||[]).length+' resep')}
+    <div style="display:flex;gap:16px;margin-bottom:6px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:110px;background:#f6f3ee;border-radius:10px;padding:10px 14px;">
+        <div style="font-size:10px;color:#888;">Biaya Bahan</div>
+        <div style="font-size:14px;font-weight:700;">${fmtRp(a.totalIng)}</div>
+      </div>
+      <div style="flex:1;min-width:110px;background:#f6f3ee;border-radius:10px;padding:10px 14px;">
+        <div style="font-size:10px;color:#888;">Biaya Tenaga Kerja</div>
+        <div style="font-size:14px;font-weight:700;">${fmtRp(a.totalLabor)}</div>
+      </div>
+      <div style="flex:1;min-width:110px;background:#f6f3ee;border-radius:10px;padding:10px 14px;">
+        <div style="font-size:10px;color:#888;">Biaya Lain-lain</div>
+        <div style="font-size:14px;font-weight:700;">${fmtRp(a.totalOv)}</div>
+      </div>
+      <div style="flex:1;min-width:110px;background:#c81e2c;border-radius:10px;padding:10px 14px;">
+        <div style="font-size:10px;color:#f6d8da;">Total Modal</div>
+        <div style="font-size:14px;font-weight:700;color:#fff;">${fmtRp(a.totalCost)}</div>
+      </div>
+    </div>
+    ${pdfSectionTitle('Rincian per Resep')}
+    <div style="border:1px solid #f0ebe1;border-radius:8px;overflow:hidden;">${bdRows||pdfRowHtml('Belum ada resep di rencana ini','')}</div>
+    ${pdfSectionTitle('Marketlist Gabungan')}
+    <div style="border:1px solid #f0ebe1;border-radius:8px;overflow:hidden;">${marketRows||pdfRowHtml('Tidak ada bahan','')}</div>
+    ${pdfFooterHtml()}
+  </div>`;
+}
+function exportPlanPDF(){
+  const p=activePlan();
+  if(!p||!(p.items||[]).length){ toast('Rencana masih kosong'); return; }
+  const a=aggregatePlan(p);
+  renderPdfFromHtml(buildPlanPdfHtml(p,a),'rencana-'+p.name.replace(/\s+/g,'-')+'.pdf','plan-pdf-btn');
+}
 function activePlan(){ return plans.find(p=>p.id===activePlanId)||null; }
 async function createPlan(){
   const name=prompt('Nama rencana produksi:','Rencana '+(plans.length+1));
@@ -2210,14 +2262,6 @@ function exportRecipesCSV(){
     rows.push([r.name,r.category||'',r.yieldQty,r.yieldUnit||'',r.prepMinutes||0,Math.round(c.ingCost),Math.round(c.laborCost),Math.round(c.overheadCost),Math.round(c.total),Math.round(c.perUnit),r.sellPrice||'',c.margin!==null?c.margin.toFixed(1):'']);
   });
   downloadCSV('rekap-resep.csv',rows);
-}
-function exportPlanCSV(){
-  const p=activePlan();
-  if(!p||!(p.items||[]).length){ toast('Rencana masih kosong'); return; }
-  const a=aggregatePlan(p);
-  const rows=[['Bahan','Jumlah','Satuan','Biaya']];
-  Object.values(a.agg).forEach(x=>rows.push([x.ing.name,Math.round(x.qty*100)/100,x.ing.unit,Math.round(x.qty*effectivePrice(x.ing))]));
-  downloadCSV('marketlist-'+p.name.replace(/\s+/g,'-')+'.csv',rows);
 }
 
 /* ================= INIT ================= */
